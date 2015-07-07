@@ -18,10 +18,10 @@
   "Name of jenkins buffer")
 
 (defconst jenkins-list-format
-  [("S" 5 t)
+  [("#" 3 f :pad-right 2 :right-align t)
    ("Name" 35 t)
-   ("Last success" 20 t)
-   ("Last failed" 20 t)]
+   ("Last success" 20 f)
+   ("Last failed" 20 f)]
   "Columns format")
 
 (defun jenkins:setup-variables ()
@@ -86,7 +86,7 @@
         (apply 'vector
                ;; status
                (if (equal (cdr (assoc 'result (assoc 'lastBuild item))) "SUCCESS")
-                   "OK" "F")
+                   (propertize "●" 'face 'success) (propertize "●" 'face 'error))
                ;; name
                (cdr (assoc 'name item))
                ;; last build times
