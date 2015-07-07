@@ -1,0 +1,3 @@
+* Jenkins.el plugin for emacs
+
+Minimalistic jenkins plugin in development
