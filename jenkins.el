@@ -1,4 +1,6 @@
-;;; jenkins.el - small iteraction library for jenkins
+;;; jenkins.el --- small iteraction library for jenkins
+
+;;; Commentary:
 
 ;; To proper installation, please define variables as it shown below:
 ;;
@@ -7,22 +9,40 @@
 ;; (setq jenkins-username "<your user name>")
 ;; (setq jenkins-viewname "<viewname>")
 
+;;; Code:
 
-(defvar jenkins-api-token nil)
-(defvar jenkins-hostname nil)
-(defvar jenkins-username nil)
-(defvar jenkins-viewname nil)
+(require 'dash)
 
 (defconst jenkins-buffer-name
   "*jenkins-status*"
-  "Name of jenkins buffer")
+  "Name of jenkins buffer.")
 
 (defconst jenkins-list-format
   [("#" 3 f :pad-right 2 :right-align t)
    ("Name" 35 t)
    ("Last success" 20 f)
    ("Last failed" 20 f)]
-  "Columns format")
+  "Columns format.")
+
+(defvar jenkins-api-token nil)
+(defvar jenkins-hostname nil)
+(defvar jenkins-username nil)
+(defvar jenkins-viewname nil)
+
+(defvar *jenkins-jobs-list* nil)
+
+(defvar jenkins-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "r") 'jenkins:restart-job)
+    ;; (define-key map (kbd "g") 'butler-refresh)
+    map)
+  "Jenkins status mode keymap.")
+
+(defun jenkins:restart-job (&optional jobindex)
+  "Build jenkins job"
+  (interactive)
+  (let (index (tabulated-list-get-id))
+    index))
 
 (defun jenkins:setup-variables ()
   "Ask from user required variables if they not defined yet"
@@ -44,21 +64,23 @@
          )
     (if (cdr timeitems)
         (apply 'list
-               (format "%d%s" extracted-time (car timeitem))
+               (list extracted-time (car timeitem))
                (jenkins:-parse-time-from rest-time (cdr timeitems)))
-      (list (format "%d%s" time-since (car timeitem)))
+      (list (list time-since (car timeitem)))
       )))
 
 (defun jenkins:time-since-to-text (timestamp)
   "Returns beatiful string presenting time since event"
-  (let ((timeitems
-         '(("s" . 60) ("m" . 60)
-           ("h" . 24) ("d" . 1)))
-        (seconds-since (- (float-time) timestamp)))
-  (mapconcat
-   'identity
-   (reverse (jenkins:-parse-time-from seconds-since timeitems))
-   ":")))
+  (let* ((timeitems
+          '(("s" . 60) ("m" . 60)
+            ("h" . 24) ("d" . 1)))
+         (seconds-since (- (float-time) timestamp))
+         (time-pairs (jenkins:-parse-time-from seconds-since timeitems))
+         )
+    (mapconcat
+     (lambda (values) (apply 'format "%d%s" values))
+     (reverse (--filter (not (= (car it) 0)) time-pairs))
+     ":")))
 
 (defun jenkins:view-url (hostname viewname)
   "Jenkins url for get list of jobs in queue and their summaries"
@@ -68,8 +90,10 @@
 (define-derived-mode jenkins-mode tabulated-list-mode "Jenkins"
   "Special mode for jenkins status buffer"
   (setq truncate-lines t)
+  (kill-all-local-variables)
   (setq mode-name "Jenkins")
   (setq major-mode 'jenkins-mode)
+  (use-local-map jenkins-mode-map)
   (hl-line-mode 1)
   (setq tabulated-list-format jenkins-list-format)
   (setq tabulated-list-entries 'jenkins:get-jobs-list)
@@ -109,20 +133,26 @@
                      (re-search-forward "^$")
                      (delete-region (point) (point-min))
                      (buffer-string)))
-         (data (json-read-from-string response)))
-    (apply 'list (jenkins:process-data data))))
+         (raw-data (json-read-from-string response))
+         (data (jenkins:process-data raw-data))
+         )
+    (progn
+      (setq *jenkins-jobs-list* data)
+      data)
+    ))
 
 (defun jenkins:render ()
-  "Write all information about jenkins jobs"
+  "Write all information about jenkins jobs."
   (erase-buffer)
   (setq buffer-read-only t)
   (jenkins-mode))
 
 (defun jenkins ()
-  "Initialize jenkins buffer"
+  "Initialize jenkins buffer."
   (interactive)
   (jenkins:setup-variables)
   (switch-to-buffer-other-window jenkins-buffer-name)
   (jenkins:render))
 
 (provide 'jenkins)
+;;; jenkins ends here
