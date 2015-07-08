@@ -53,8 +53,7 @@
   (unless jenkins-username
     (setq jenkins-username (read-from-minibuffer "Jenkins username: ")))
   (unless jenkins-api-token
-    (setq jenkins-api-token (read-from-minibuffer "Jenkins API Token: ")))
-  )
+    (setq jenkins-api-token (read-from-minibuffer "Jenkins API Token: "))))
 
 (defun jenkins:-parse-time-from (time-since timeitems)
   "Return list of text representations of time from event"
@@ -110,7 +109,8 @@
         (apply 'vector
                ;; status
                (if (equal (cdr (assoc 'result (assoc 'lastBuild item))) "SUCCESS")
-                   (propertize "●" 'face 'success) (propertize "●" 'face 'error))
+                   (propertize "●" 'font-lock-face 'success)
+                 (propertize "●" 'font-lock-face 'error))
                ;; name
                (cdr (assoc 'name item))
                ;; last build times
@@ -140,6 +140,13 @@
       (setq *jenkins-jobs-list* data)
       data)
     ))
+
+(defun jenkins:visit-jenkins-web-page ()
+  "Open jenkins web page using predefined variables."
+  (interactive)
+  (unless jenkins-hostname
+    (setq jenkins-hostname (read-from-minibuffer "Jenkins hostname: ")))
+  (browse-url jenkins-hostname))
 
 (defun jenkins:render ()
   "Write all information about jenkins jobs."
