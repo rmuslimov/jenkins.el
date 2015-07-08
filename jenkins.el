@@ -76,7 +76,7 @@
              (funcall col-source it)
            (plist-get it col-source))))
      jenkins-list-format)))
-   *jenkins-jobs-list*
+   (mapcar 'cdr *jenkins-jobs-list*)
    ))
 
 ;;; actions
@@ -91,21 +91,22 @@
   (let (index (tabulated-list-get-id))
     index))
 
-(defun jenkins--parse-time-from (time-since timeitems)
-  "Return list of text representations of time from event"
-  (let* ((timeitem (car timeitems))
-         (extracted-time (mod time-since (cdr timeitem)))
-         (rest-time (/ (- time-since extracted-time) (cdr timeitem)))
-         )
-    (if (cdr timeitems)
-        (apply 'list
-               (list extracted-time (car timeitem))
-               (jenkins--parse-time-from rest-time (cdr timeitems)))
-      (list (list time-since (car timeitem)))
-      )))
 
 (defun jenkins--time-since-to-text (timestamp)
   "Returns beatiful string presenting time since event"
+
+  (defun jenkins--parse-time-from (time-since timeitems)
+    (let* ((timeitem (car timeitems))
+           (extracted-time (mod time-since (cdr timeitem)))
+           (rest-time (/ (- time-since extracted-time) (cdr timeitem)))
+           )
+      (if (cdr timeitems)
+          (apply 'list
+                 (list extracted-time (car timeitem))
+                 (jenkins--parse-time-from rest-time (cdr timeitems)))
+        (list (list time-since (car timeitem)))
+        )))
+
   (let* ((timeitems
           '(("s" . 60) ("m" . 60)
             ("h" . 24) ("d" . 1)))
@@ -124,16 +125,19 @@
 
 (defun jenkins--parse-jobs-json (data)
   "Parse gotten data from jenkins, build entries for view"
+
+  (defun extract-time-of-build (x buildname)
+    (let ((val (cdr (assoc 'timestamp (assoc buildname x)))))
+      (if val (jenkins--time-since-to-text (/ val 1000)) "")))
+
   (let ((jobs (cdr (assoc 'jobs data))))
     (--map
-     (apply 'jenkins--make-job
-      (cdr (assoc 'name it))
-      (cdr (assoc 'result (assoc 'lastBuild it)))
-      (-map
-       (lambda (x)
-         (let ((val (cdr (assoc 'timestamp (assoc x it)))))
-           (if val (jenkins--time-since-to-text (/ val 1000)) "")))
-       (list 'lastSuccessfulBuild 'lastFailedBuild)))
+     (apply 'list (cdr (assoc 'name it))
+            (jenkins--make-job
+             (cdr (assoc 'name it))
+             (cdr (assoc 'result (assoc 'lastBuild it)))
+             (extract-time-of-build it 'lastSuccessfulBuild)
+             (extract-time-of-build it 'lastFailedBuild)))
      jobs)))
 
 (defun jenkins-get-jobs-list ()
@@ -183,6 +187,24 @@
   (setq tabulated-list-entries 'jenkins--refresh-jobs-list)
   (tabulated-list-init-header)
   (tabulated-list-print))
+
+(define-derived-mode jenkins-job-view-mode special-mode "Jenkins job"
+  "Mode for viewing jenkins job details"
+  (view-mode 1)
+  (font-lock-mode 1))
+
+(defun jenkins-job-view (jobname)
+  "Open job details"
+  (interactive)
+  (let ((buffer-name (format "*%s details*" jobname)))
+    (switch-to-buffer buffer-name)
+    (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
+      (progn
+        (insert (format "Job name: %s\n" jobname))
+        (insert (format "Status: %s" (plist-get job :result)))
+        ))
+    (jenkins-job-view-mode)
+  ))
 
 (defun jenkins ()
   "Initialize jenkins buffer."
