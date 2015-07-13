@@ -1,4 +1,4 @@
-;;; jenkins.el --- small iteraction library for jenkins
+;; jenkins.el --- small iteraction library for jenkins
 
 ;;; Commentary:
 
@@ -23,6 +23,8 @@
    ("Last success" 20 f :col-source :last-success)
    ("Last failed" 20 f :col-source :last-failed)]
   "Columns format.")
+
+(defvar *jenkins-local-mode* nil)
 
 (defvar jenkins-api-token nil)
 (defvar jenkins-hostname nil)
@@ -82,15 +84,16 @@
 ;;; actions
 
 (defun jenkins:enter-job (&optional jobindex)
+  "Open each job detalization page"
   (interactive)
-  (message "Enter"))
+  (let ((jobindex (or jobindex (tabulated-list-get-id))))
+    (jenkins-job-view jobindex)))
 
 (defun jenkins:restart-job (&optional jobindex)
   "Build jenkins job"
   (interactive)
   (let (index (tabulated-list-get-id))
     index))
-
 
 (defun jenkins--time-since-to-text (timestamp)
   "Returns beatiful string presenting time since event"
@@ -142,20 +145,23 @@
 
 (defun jenkins-get-jobs-list ()
   "Get list of jobs from jenkins server"
-  (let* ((url-request-extra-headers
-          `(("Content-Type" . "application/x-www-form-urlencoded")
-            ("Authorization" .
-             ,(concat "Basic " (base64-encode-string (concat jenkins-username ":" jenkins-api-token))))))
-         (response (with-current-buffer
-                       (url-retrieve-synchronously (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
-                     (goto-char (point-min))
-                     (re-search-forward "^$")
-                     (delete-region (point) (point-min))
-                     (buffer-string)))
-         (raw-data (json-read-from-string response))
-         (data (jenkins--parse-jobs-json raw-data))
-         )
-    (setq *jenkins-jobs-list* data)))
+  (if *jenkins-local-mode*
+      (setq *jenkins-jobs-list* *jenkins-local-state*)
+      (let* ((url-request-extra-headers
+              `(("Content-Type" . "application/x-www-form-urlencoded")
+                ("Authorization" .
+                 ,(concat "Basic " (base64-encode-string (concat jenkins-username ":" jenkins-api-token))))))
+             (response (with-current-buffer
+                           (url-retrieve-synchronously (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+                         (goto-char (point-min))
+                         (re-search-forward "^$")
+                         (delete-region (point) (point-min))
+                         (buffer-string)))
+             (raw-data (json-read-from-string response))
+             (data (jenkins--parse-jobs-json raw-data))
+             )
+        (setq *jenkins-jobs-list* data)))
+  )
 
 ;; helpers
 
@@ -186,25 +192,74 @@
   (setq tabulated-list-format jenkins-list-format)
   (setq tabulated-list-entries 'jenkins--refresh-jobs-list)
   (tabulated-list-init-header)
-  (tabulated-list-print))
+  (tabulated-list-print)
+  )
 
 (define-derived-mode jenkins-job-view-mode special-mode "Jenkins job"
   "Mode for viewing jenkins job details"
   (view-mode 1)
-  (font-lock-mode 1))
+  (font-lock-mode 1)
+
+  ;; buffer defaults
+  (setq-local local-jobname jobname)
+  (setq-local local-jobs-shown nil)
+  )
+
+(defun jenkins-job-render (jobname)
+  (setq buffer-read-only nil)
+  (erase-buffer)
+  (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
+    (insert
+     (jenkins-job-details-screen
+      jobname (plist-get job :result) "id 495" "id 455" "N")
+     ))
+  (setq buffer-read-only t)
+  )
 
 (defun jenkins-job-view (jobname)
   "Open job details"
   (interactive)
-  (let ((buffer-name (format "*%s details*" jobname)))
-    (switch-to-buffer buffer-name)
-    (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
-      (progn
-        (insert (format "Job name: %s\n" jobname))
-        (insert (format "Status: %s" (plist-get job :result)))
-        ))
+  (setq local-jobs-shown t)
+  (let ((details-buffer-name (format "*%s details*" jobname)))
+    (switch-to-buffer details-buffer-name)
+    (jenkins-job-render jobname)
     (jenkins-job-view-mode)
-  ))
+    ))
+
+(defun jenkins-job-details-toggle ()
+  (interactive)
+  (setq-local local-jobs-shown (not local-jobs-shown))
+  (let ((prev (point)))
+    (progn
+      (jenkins-job-render local-jobname)
+      (goto-char prev)
+      )))
+
+(defun jenkins-job-details-screen (&rest params)
+  "Jenkins job detailization screen"
+
+  (let* ((jobs-keymap
+          (let ((keymap (make-sparse-keymap)))
+            (progn
+              (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
+              (define-key keymap (kbd "2") 'jenkins-job-details-toggle)
+              keymap)))
+         (formatted-string
+           (concat
+            "Job name: %s\nStatus: "
+            (propertize "%s!" 'face 'warning 'keymap jobs-keymap)
+            "\n\n"
+            (format "toggling: %s\n" local-jobs-shown)
+            "Latest builds:\n"
+            "- success: %s\n"
+            "- failed: %s\n"
+            "or review other %s jobs\n\n"
+            (propertize "Build now!" 'face 'error)
+            ))
+         )
+    (apply 'format formatted-string params)
+    ))
+
 
 (defun jenkins ()
   "Initialize jenkins buffer."
