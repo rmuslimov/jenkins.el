@@ -17,9 +17,19 @@
   "*jenkins-status*"
   "Name of jenkins buffer.")
 
+(defun jenkins--render-name (item)
+  (let ((jobname (plist-get item :name))
+        (progress (plist-get item :progress)))
+    (if progress
+        (format "%s %s"
+                (propertize (format "%s%%" progress) 'font-lock-face 'warning)
+                jobname)
+      (format "%s" jobname)))
+  )
+
 (defconst jenkins-list-format
   [("#" 3 f :pad-right 2 :right-align t :col-source jenkins--render-indicator)
-   ("Name" 35 t :col-source :name)
+   ("Name" 35 t :col-source jenkins--render-name)
    ("Last success" 20 f :col-source :last-success)
    ("Last failed" 20 f :col-source :last-failed)]
   "Columns format.")
@@ -35,7 +45,13 @@
 
 (defun jenkins-jobs-view-url (hostname viewname)
   "Jenkins url for get list of jobs in queue and their summaries"
-  (format "%sview/%s/api/json?depth=2&tree=name,jobs[name,lastSuccessfulBuild[result,timestamp,duration,id],lastFailedBuild[result,timestamp,duration,id],lastBuild[result]]"
+  (format (concat
+           "%sview/%s/api/json?depth=2&tree=name,jobs[name,"
+           "lastSuccessfulBuild[result,timestamp,duration,id],"
+           "lastFailedBuild[result,timestamp,duration,id],"
+           "lastBuild[result,executor[progress]],"
+           "lastCompletedBuild[result]]"
+           )
           hostname viewname))
 
 (defun jenkins--setup-variables ()
@@ -51,19 +67,23 @@
 
 ;; models
 
-(defun jenkins--make-job (name result last-success last-failed)
+(defun jenkins--make-job (name result progress last-success last-failed)
   "Define regular jenkins job here."
   (list :name name
         :result result
+        :progress progress
         :last-success last-success
         :last-failed last-failed))
 
 (defun jenkins--render-indicator (job)
   "Special indicator on main jenkins window."
-  (let ((result (plist-get job :result)))
-    (if (equal result "SUCCESS")
-        (propertize "●" 'font-lock-face 'success)
-      (propertize "●" 'font-lock-face 'error))))
+  (let ((result (plist-get job :result))
+        (facemap (list
+                  '("SUCCESS" . 'success)
+                  '("FAILURE" . 'error)
+                  '("ABORTED" . 'warning))))
+    (propertize "●" 'font-lock-face (cdr (assoc result facemap))))
+  )
 
 (defun jenkins--convert-jobs-to-tabulated-format ()
   "Use global jenkins-jobs-list prepare data from table"
@@ -138,7 +158,8 @@
      (apply 'list (cdr (assoc 'name it))
             (jenkins--make-job
              (cdr (assoc 'name it))
-             (cdr (assoc 'result (assoc 'lastBuild it)))
+             (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
+             (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
              (extract-time-of-build it 'lastSuccessfulBuild)
              (extract-time-of-build it 'lastFailedBuild)))
      jobs)))
