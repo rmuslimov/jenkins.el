@@ -54,6 +54,14 @@
            )
           hostname viewname))
 
+(defun jenkins-job-url (hostname jobname)
+  (format (concat
+           "%sjob/%s/"
+           "api/json?depth=1&tree=builds"
+           "[id,timestamp,result,url,building,"
+           "culprits[fullName]]")
+          hostname jobname))
+
 (defun jenkins--setup-variables ()
   "Ask from user required variables if they not defined yet"
   (unless jenkins-hostname
@@ -146,12 +154,33 @@
   (jenkins-get-jobs-list)
   (jenkins--convert-jobs-to-tabulated-format))
 
-(defun jenkins--parse-jobs-json (data)
-  "Parse gotten data from jenkins, build entries for view"
+(defun jenkins--retrieve-page-as-json (url)
+  "Shortcut for jenkins api to return valid json"
+  (let* ((url-request-extra-headers
+          `(("Content-Type" . "application/x-www-form-urlencoded")
+            ("Authorization" .
+             ,(concat
+               "Basic "
+               (base64-encode-string
+                (concat jenkins-username ":" jenkins-api-token)))))))
+    (with-current-buffer (url-retrieve-synchronously url)
+      (goto-char (point-min))
+      (re-search-forward "^$")
+      (delete-region (point) (point-min))
+      (json-read-from-string (buffer-string)))
+    ))
 
-  (defun extract-time-of-build (x buildname)
-    (let ((val (cdr (assoc 'timestamp (assoc buildname x)))))
-      (if val (jenkins--time-since-to-text (/ val 1000)) "")))
+(defun jenkins--extract-time-of-build (x buildname)
+  "Helper defun to render timstamps"
+  (let ((val (cdr (assoc 'timestamp (assoc buildname x)))))
+    (if val (jenkins--time-since-to-text (/ val 1000)) "")))
+
+(defun jenkins-get-jobs-list ()
+  "Get list of jobs from jenkins server"
+  (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+         (raw-data (jenkins--retrieve-page-as-json jobs-url))
+         (data (jenkins--parse-jobs-json raw-data)))
+    (setq *jenkins-jobs-list* data))
 
   (let ((jobs (cdr (assoc 'jobs data))))
     (--map
@@ -160,29 +189,16 @@
              (cdr (assoc 'name it))
              (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
              (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
-             (extract-time-of-build it 'lastSuccessfulBuild)
-             (extract-time-of-build it 'lastFailedBuild)))
-     jobs)))
-
-(defun jenkins-get-jobs-list ()
-  "Get list of jobs from jenkins server"
-  (if *jenkins-local-mode*
-      (setq *jenkins-jobs-list* *jenkins-local-state*)
-      (let* ((url-request-extra-headers
-              `(("Content-Type" . "application/x-www-form-urlencoded")
-                ("Authorization" .
-                 ,(concat "Basic " (base64-encode-string (concat jenkins-username ":" jenkins-api-token))))))
-             (response (with-current-buffer
-                           (url-retrieve-synchronously (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
-                         (goto-char (point-min))
-                         (re-search-forward "^$")
-                         (delete-region (point) (point-min))
-                         (buffer-string)))
-             (raw-data (json-read-from-string response))
-             (data (jenkins--parse-jobs-json raw-data))
-             )
-        (setq *jenkins-jobs-list* data)))
+             (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
+             (jenkins--extract-time-of-build it 'lastFailedBuild)))
+     jobs))
   )
+
+(defun jenkins-get-job-details (jobname)
+  "Make to certain job call"
+  (let* ((job-url (jenkins-job-url jenkins-hostname jobname))
+         (raw-data (jenkins--retrieve-page-as-json job-url)))
+    raw-data))
 
 ;; helpers
 
@@ -258,7 +274,6 @@
 
 (defun jenkins-job-details-screen (&rest params)
   "Jenkins job detailization screen"
-
   (let* ((jobs-keymap
           (let ((keymap (make-sparse-keymap)))
             (progn
