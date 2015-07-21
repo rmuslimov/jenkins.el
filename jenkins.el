@@ -179,19 +179,18 @@
   "Get list of jobs from jenkins server"
   (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
          (raw-data (jenkins--retrieve-page-as-json jobs-url))
-         (data (jenkins--parse-jobs-json raw-data)))
-    (setq *jenkins-jobs-list* data))
-
-  (let ((jobs (cdr (assoc 'jobs data))))
-    (--map
-     (apply 'list (cdr (assoc 'name it))
-            (jenkins--make-job
-             (cdr (assoc 'name it))
-             (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
-             (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
-             (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
-             (jenkins--extract-time-of-build it 'lastFailedBuild)))
-     jobs))
+         (jobs (cdr (assoc 'jobs raw-data))))
+    (setq *jenkins-jobs-list*
+          (--map
+           (apply 'list (cdr (assoc 'name it))
+                  (jenkins--make-job
+                   (cdr (assoc 'name it))
+                   (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
+                   (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
+                   (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
+                   (jenkins--extract-time-of-build it 'lastFailedBuild)))
+           jobs)
+    ))
   )
 
 (defun jenkins-get-job-details (jobname)
