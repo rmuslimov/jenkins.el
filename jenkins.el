@@ -17,7 +17,40 @@
   "*jenkins-status*"
   "Name of jenkins buffer.")
 
+(defconst jenkins-list-format
+  [("#" 3 f :pad-right 2 :right-align t :col-source jenkins--render-indicator)
+   ("Name" 35 t :col-source jenkins--render-name)
+   ("Last success" 20 f :col-source :last-success)
+   ("Last failed" 20 f :col-source :last-failed)]
+  "List of columns for main jenkins jobs screen.")
+
+(defvar *jenkins-local-mode* t "Optimization for local development")
+
+(defvar jenkins-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
+    (define-key map (kbd "r") 'jenkins:restart-job)
+    (define-key map (kbd "RET") 'jenkins:enter-job)
+    map)
+  "Jenkins main screen status mode keymap.")
+
+(defvar jenkins-jobs-mode-map
+  (let ((keymap (make-sparse-keymap)))
+    (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
+    (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
+    keymap)
+  "Jenkins jobs status mode keymap.")
+
+;; Setup this varialbles get proper working jenkins.el
+(defvar jenkins-api-token nil)
+(defvar jenkins-hostname nil)
+(defvar jenkins-username nil)
+(defvar jenkins-viewname nil)
+
+(defvar *jenkins-jobs-list* nil "Data retrieved from jenkins for main jenkins screen.")
+
 (defun jenkins--render-name (item)
+  "Render jobname for main jenkins jobs screen."
   (let ((jobname (plist-get item :name))
         (progress (plist-get item :progress)))
     (if progress
@@ -27,24 +60,9 @@
       (format "%s" jobname)))
   )
 
-(defconst jenkins-list-format
-  [("#" 3 f :pad-right 2 :right-align t :col-source jenkins--render-indicator)
-   ("Name" 35 t :col-source jenkins--render-name)
-   ("Last success" 20 f :col-source :last-success)
-   ("Last failed" 20 f :col-source :last-failed)]
-  "Columns format.")
-
-(defvar *jenkins-local-mode* nil)
-
-(defvar jenkins-api-token nil)
-(defvar jenkins-hostname nil)
-(defvar jenkins-username nil)
-(defvar jenkins-viewname nil)
-
-(defvar *jenkins-jobs-list* nil)
 
 (defun jenkins-jobs-view-url (hostname viewname)
-  "Jenkins url for get list of jobs in queue and their summaries"
+  "Jenkins url for get list of jobs in queue and their summaries."
   (format (concat
            "%sview/%s/api/json?depth=2&tree=name,jobs[name,"
            "lastSuccessfulBuild[result,timestamp,duration,id],"
@@ -55,6 +73,7 @@
           hostname viewname))
 
 (defun jenkins-job-url (hostname jobname)
+  "Job url in jenkins"
   (format (concat
            "%sjob/%s/"
            "api/json?depth=1&tree=builds"
@@ -83,14 +102,20 @@
         :last-success last-success
         :last-failed last-failed))
 
+(defun jenkins--get-proper-face-for-result (result)
+  "Simple function returning proper 'face for jenkins result."
+  (let ((facemap (list '("SUCCESS" . 'success)
+                       '("FAILURE" . 'error)
+                       '("ABORTED" . 'warning))))
+    (cdr (assoc result facemap)))
+  )
+
 (defun jenkins--render-indicator (job)
   "Special indicator on main jenkins window."
-  (let ((result (plist-get job :result))
-        (facemap (list
-                  '("SUCCESS" . 'success)
-                  '("FAILURE" . 'error)
-                  '("ABORTED" . 'warning))))
-    (propertize "●" 'font-lock-face (cdr (assoc result facemap))))
+  (propertize
+   "●" 'font-lock-face
+   (jenkins--get-proper-face-for-result
+    (plist-get job :result)))
   )
 
 (defun jenkins--convert-jobs-to-tabulated-format ()
@@ -125,7 +150,6 @@
 
 (defun jenkins--time-since-to-text (timestamp)
   "Returns beatiful string presenting time since event"
-
   (defun jenkins--parse-time-from (time-since timeitems)
     (let* ((timeitem (car timeitems))
            (extracted-time (mod time-since (cdr timeitem)))
@@ -177,20 +201,22 @@
 
 (defun jenkins-get-jobs-list ()
   "Get list of jobs from jenkins server"
-  (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
-         (raw-data (jenkins--retrieve-page-as-json jobs-url))
-         (jobs (cdr (assoc 'jobs raw-data))))
-    (setq *jenkins-jobs-list*
-          (--map
-           (apply 'list (cdr (assoc 'name it))
-                  (jenkins--make-job
-                   (cdr (assoc 'name it))
-                   (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
-                   (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
-                   (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
-                   (jenkins--extract-time-of-build it 'lastFailedBuild)))
-           jobs)
-    ))
+  (setq *jenkins-jobs-list*
+        (if *jenkins-local-mode* *jenkins-local-state*
+          (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+                 (raw-data (jenkins--retrieve-page-as-json jobs-url))
+                 (jobs (cdr (assoc 'jobs raw-data))))
+            (--map
+             (apply 'list (cdr (assoc 'name it))
+                    (jenkins--make-job
+                     (cdr (assoc 'name it))
+                     (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
+                     (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
+                     (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
+                     (jenkins--extract-time-of-build it 'lastFailedBuild)))
+             jobs)
+            ))
+        )
   )
 
 (defun jenkins-get-job-details (jobname)
@@ -208,15 +234,7 @@
     (setq jenkins-hostname (read-from-minibuffer "Jenkins hostname: ")))
   (browse-url jenkins-hostname))
 
-(defvar jenkins-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "r") 'jenkins:restart-job)
-    (define-key map (kbd "RET") 'jenkins:enter-job)
-    map)
-  "Jenkins status mode keymap.")
-
 ;; emacs major mode funcs and variables
-
 (define-derived-mode jenkins-mode tabulated-list-mode "Jenkins"
   "Special mode for jenkins status buffer"
   (setq truncate-lines t)
@@ -231,14 +249,16 @@
   (tabulated-list-print)
   )
 
-(define-derived-mode jenkins-job-view-mode special-mode "Jenkins job"
+(define-derived-mode jenkins-job-view-mode special-mode "jenkins-job"
   "Mode for viewing jenkins job details"
-  (view-mode 1)
+  ;; (view-mode 1)
   (font-lock-mode 1)
 
   ;; buffer defaults
   (setq-local local-jobname jobname)
   (setq-local local-jobs-shown nil)
+  (setq major-mode 'jenkins-job-view-mode)
+  (use-local-map jenkins-jobs-mode-map)
   )
 
 (defun jenkins-job-render (jobname)
@@ -246,14 +266,13 @@
   (erase-buffer)
   (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
     (insert
-     (jenkins-job-details-screen
-      jobname (plist-get job :result) "id 495" "id 455" "N")
+     (jenkins-job-details-screen jobname)
      ))
   (setq buffer-read-only t)
   )
 
 (defun jenkins-job-view (jobname)
-  "Open job details"
+  "Open job details screen."
   (interactive)
   (setq local-jobs-shown t)
   (let ((details-buffer-name (format "*%s details*" jobname)))
@@ -265,36 +284,69 @@
 (defun jenkins-job-details-toggle ()
   (interactive)
   (setq-local local-jobs-shown (not local-jobs-shown))
-  (let ((prev (point)))
-    (progn
-      (jenkins-job-render local-jobname)
-      (goto-char prev)
-      )))
+  (jenkins-job-render local-jobname)
+  (goto-line 4)
+  )
 
-(defun jenkins-job-details-screen (&rest params)
-  "Jenkins job detailization screen"
-  (let* ((jobs-keymap
-          (let ((keymap (make-sparse-keymap)))
-            (progn
-              (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
-              (define-key keymap (kbd "2") 'jenkins-job-details-toggle)
-              keymap)))
-         (formatted-string
-           (concat
-            "Job name: %s\nStatus: "
-            (propertize "%s!" 'face 'warning 'keymap jobs-keymap)
-            "\n\n"
-            (format "toggling: %s\n" local-jobs-shown)
-            "Latest builds:\n"
-            "- success: %s\n"
-            "- failed: %s\n"
-            "or review other %s jobs\n\n"
-            (propertize "Build now!" 'face 'error)
-            ))
+(defun jenkins-job-call-build (jobname)
+  "Call building job in jenkins."
+  (interactive)
+  (message (format "Building %s job started!" jobname))
+  )
+
+(defun jenkins--call-build-job-from-main-screen ()
+  "Build job from main screen."
+  (interactive)
+  (jenkins-job-call-build (tabulated-list-get-id))
+  )
+
+(defun jenkins--call-build-job-from-job-screen ()
+  "Call building job from job details in jenkins."
+  (interactive)
+  (jenkins-job-call-build local-jobname)
+  )
+
+
+
+(defun jenkins-job-details-screen (jobname)
+  "Jenkins job detailization screen, JOBNAME."
+  (let* ((job-details *jenkins-job-description*)
+         (jobname (plist-get job-details :name))
+         (builds (plist-get job-details :builds))
+         (latest (cdar builds))
+         (latest-result (plist-get latest :result))
+         (latestSuccessful
+          (cdr (assoc (plist-get job-details :latestSuccessful) builds)))
          )
-    (apply 'format formatted-string params)
-    ))
-
+    (concat
+     (format "Job name:\t%s\n" jobname)
+     "Status:\t\t"
+     (propertize
+      (format "%s\n\n" latest-result)
+      'face (jenkins--get-proper-face-for-result latest-result))
+     (propertize
+      (concat
+       (format
+        "Latest %s builds: ;; (press 1 to toggle)\n"
+        (length builds))
+       (if local-jobs-shown
+           (apply 'concat
+                  (--map
+                   (propertize
+                    (format "- Job #%s, %s, %s\n"
+                            (car it)
+                            (plist-get (cdr it) :author)
+                            (plist-get (cdr it) :timestring)
+                            )
+                    'face
+                    (jenkins--get-proper-face-for-result
+                     (plist-get (cdr it) :result)
+                     ))
+                   builds)))))
+     "\n"
+     (propertize "Build now!" 'face 'success)
+     ))
+  )
 
 (defun jenkins ()
   "Initialize jenkins buffer."
