@@ -24,13 +24,11 @@
    ("Last failed" 20 f :col-source :last-failed)]
   "List of columns for main jenkins jobs screen.")
 
-(defvar *jenkins-local-mode* t "Optimization for local development")
-
 (defvar jenkins-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
-    (define-key map (kbd "r") 'jenkins:restart-job)
-    (define-key map (kbd "RET") 'jenkins:enter-job)
+    (define-key map (kbd "r") 'jenkins-restart-job)
+    (define-key map (kbd "RET") 'jenkins-enter-job)
     map)
   "Jenkins main screen status mode keymap.")
 
@@ -47,7 +45,9 @@
 (defvar jenkins-username nil)
 (defvar jenkins-viewname nil)
 
-(defvar *jenkins-jobs-list* nil "Data retrieved from jenkins for main jenkins screen.")
+(defvar *jenkins-jobs-list*
+  nil
+  "Data retrieved from jenkins for main jenkins screen.")
 
 (defun jenkins--render-name (item)
   "Render jobname for main jenkins jobs screen."
@@ -57,9 +57,7 @@
         (format "%s %s"
                 (propertize (format "%s%%" progress) 'font-lock-face 'warning)
                 jobname)
-      (format "%s" jobname)))
-  )
-
+      (format "%s" jobname))))
 
 (defun jenkins-jobs-view-url (hostname viewname)
   "Jenkins url for get list of jobs in queue and their summaries."
@@ -107,16 +105,14 @@
   (let ((facemap (list '("SUCCESS" . 'success)
                        '("FAILURE" . 'error)
                        '("ABORTED" . 'warning))))
-    (cdr (assoc result facemap)))
-  )
+    (cdr (assoc result facemap))))
 
 (defun jenkins--render-indicator (job)
   "Special indicator on main jenkins window."
   (propertize
    "●" 'font-lock-face
    (jenkins--get-proper-face-for-result
-    (plist-get job :result)))
-  )
+    (plist-get job :result))))
 
 (defun jenkins--convert-jobs-to-tabulated-format ()
   "Use global jenkins-jobs-list prepare data from table"
@@ -136,13 +132,13 @@
 
 ;;; actions
 
-(defun jenkins:enter-job (&optional jobindex)
+(defun jenkins-enter-job (&optional jobindex)
   "Open each job detalization page"
   (interactive)
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
     (jenkins-job-view jobindex)))
 
-(defun jenkins:restart-job (&optional jobindex)
+(defun jenkins-restart-job (&optional jobindex)
   "Build jenkins job"
   (interactive)
   (let (index (tabulated-list-get-id))
@@ -171,7 +167,8 @@
     (mapconcat
      (lambda (values) (apply 'format "%d%s" values))
      (-take 3 (reverse (--filter (not (= (car it) 0)) time-pairs)))
-     ":")))
+     ":")
+    ))
 
 (defun jenkins--refresh-jobs-list ()
   "Force loading reloading jobs from jenkins and return them formatter for table"
@@ -201,22 +198,22 @@
 
 (defun jenkins-get-jobs-list ()
   "Get list of jobs from jenkins server"
-  (setq *jenkins-jobs-list*
-        (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
-               (raw-data (jenkins--retrieve-page-as-json jobs-url))
-               (jobs (cdr (assoc 'jobs raw-data))))
-          (--map
-           (apply 'list (cdr (assoc 'name it))
-                  (jenkins--make-job
-                   (cdr (assoc 'name it))
-                   (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
-                   (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
-                   (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
-                   (jenkins--extract-time-of-build it 'lastFailedBuild)))
-           jobs)
-          )
-        )
-  )
+  (setq
+   *jenkins-jobs-list*
+   (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+          (raw-data (jenkins--retrieve-page-as-json jobs-url))
+          (jobs (cdr (assoc 'jobs raw-data))))
+     (--map
+      (apply 'list (cdr (assoc 'name it))
+             (jenkins--make-job
+              (cdr (assoc 'name it))
+              (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
+              (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
+              (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
+              (jenkins--extract-time-of-build it 'lastFailedBuild)))
+      jobs)
+     )
+   ))
 
 (defun jenkins-get-job-details (jobname)
   "Make to certain job call"
@@ -230,17 +227,20 @@
      (string-to-number (retrieve 'id item))
      :author (let ((culprits (cdar item)))
                (if (> (length culprits) 0)
-                 (cdar (aref culprits 0)) ""))
+                 (cdar (aref culprits 0)) "---"))
      :url (retrieve 'url item)
      :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
      :building (equal (retrieve 'building item) :json-true)
      :result (retrieve 'result item)
      ))
 
+  (defun vector-take (N vec)
+    (--map (aref vec it) (number-sequence 0 (1- N))))
+
   (let* (
          (job-url (jenkins-job-url jenkins-hostname jobname))
          (raw-data (jenkins--retrieve-page-as-json job-url))
-         (builds (-map 'convert-item (cdar raw-data)))
+         (builds (-map 'convert-item (vector-take 25 (cdar raw-data))))
          (latestSuccessful
           (caar (--filter (equal (plist-get (cdr it) :result) "SUCCESS") builds)))
          (latestFailed
@@ -273,8 +273,7 @@
   (setq tabulated-list-format jenkins-list-format)
   (setq tabulated-list-entries 'jenkins--refresh-jobs-list)
   (tabulated-list-init-header)
-  (tabulated-list-print)
-  )
+  (tabulated-list-print))
 
 (define-derived-mode jenkins-job-view-mode special-mode "jenkins-job"
   "Mode for viewing jenkins job details"
@@ -295,13 +294,12 @@
     (insert
      (jenkins-job-details-screen jobname)
      ))
-  (setq buffer-read-only t)
-  )
+  (setq buffer-read-only t))
 
 (defun jenkins-job-view (jobname)
   "Open job details screen."
   (interactive)
-  (setq local-jobs-shown t)
+  (setq local-jobs-shown nil)
   (let ((details-buffer-name (format "*%s details*" jobname)))
     (switch-to-buffer details-buffer-name)
     (jenkins-job-render jobname)
@@ -318,8 +316,7 @@
 (defun jenkins-job-call-build (jobname)
   "Call building job in jenkins."
   (interactive)
-  (message (format "Building %s job started!" jobname))
-  )
+  (message (format "Building %s job started!" jobname)))
 
 (defun jenkins--call-build-job-from-main-screen ()
   "Build job from main screen."
@@ -378,8 +375,7 @@
   (switch-to-buffer-other-window jenkins-buffer-name)
   (erase-buffer)
   (setq buffer-read-only t)
-  (jenkins-mode)
-)
+  (jenkins-mode))
 
 (provide 'jenkins)
 ;;; jenkins ends here
