@@ -229,10 +229,10 @@
     (list
      (string-to-number (retrieve 'id item))
      :author (let ((culprits (cdar item)))
-               (when (> (length culprits) 0)
-                 (cdar (aref culprits 0))))
+               (if (> (length culprits) 0)
+                 (cdar (aref culprits 0)) ""))
      :url (retrieve 'url item)
-     :timestring (retrieve 'timestamp item)
+     :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
      :building (equal (retrieve 'building item) :json-true)
      :result (retrieve 'result item)
      ))
@@ -356,7 +356,7 @@
            (apply 'concat
                   (--map
                    (propertize
-                    (format "- Job #%s, %s, %s\n"
+                    (format "- Job #%s, %s %s\n"
                             (car it)
                             (plist-get (cdr it) :author)
                             (plist-get (cdr it) :timestring)
@@ -367,7 +367,7 @@
                      ))
                    builds)))))
      "\n"
-     (propertize "Build now!" 'face 'success)
+     "Build now!"
      ))
   )
 
