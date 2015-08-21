@@ -202,31 +202,58 @@
 (defun jenkins-get-jobs-list ()
   "Get list of jobs from jenkins server"
   (setq *jenkins-jobs-list*
-        (if *jenkins-local-mode* *jenkins-local-state*
-          (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
-                 (raw-data (jenkins--retrieve-page-as-json jobs-url))
-                 (jobs (cdr (assoc 'jobs raw-data))))
-            (--map
-             (apply 'list (cdr (assoc 'name it))
-                    (jenkins--make-job
-                     (cdr (assoc 'name it))
-                     (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
-                     (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
-                     (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
-                     (jenkins--extract-time-of-build it 'lastFailedBuild)))
-             jobs)
-            ))
+        (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+               (raw-data (jenkins--retrieve-page-as-json jobs-url))
+               (jobs (cdr (assoc 'jobs raw-data))))
+          (--map
+           (apply 'list (cdr (assoc 'name it))
+                  (jenkins--make-job
+                   (cdr (assoc 'name it))
+                   (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
+                   (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
+                   (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
+                   (jenkins--extract-time-of-build it 'lastFailedBuild)))
+           jobs)
+          )
         )
   )
 
 (defun jenkins-get-job-details (jobname)
   "Make to certain job call"
-  (let* ((job-url (jenkins-job-url jenkins-hostname jobname))
-         (raw-data (jenkins--retrieve-page-as-json job-url)))
-    raw-data))
+
+  (defun convert-item (item)
+    "Converting to item."
+    (defun retrieve (attr item)
+      (cdr (assoc attr (cdr item))))
+
+    (list
+     (string-to-number (retrieve 'id item))
+     :author (let ((culprits (cdar item)))
+               (when (> (length culprits) 0)
+                 (cdar (aref culprits 0))))
+     :url (retrieve 'url item)
+     :timestring (retrieve 'timestamp item)
+     :building (equal (retrieve 'building item) :json-true)
+     :result (retrieve 'result item)
+     ))
+
+  (let* (
+         (job-url (jenkins-job-url jenkins-hostname jobname))
+         (raw-data (jenkins--retrieve-page-as-json job-url))
+         (builds (-map 'convert-item (cdar raw-data)))
+         (latestSuccessful
+          (caar (--filter (equal (plist-get (cdr it) :result) "SUCCESS") builds)))
+         (latestFailed
+          (caar (--filter (equal (plist-get (cdr it) :result) "FAILURE") builds)))
+         )
+    (list :name jobname
+          :builds builds
+          :latestSuccessful latestSuccessful
+          :latestFailed latestFailed
+          )
+    ))
 
 ;; helpers
-
 (defun jenkins:visit-jenkins-web-page ()
   "Open jenkins web page using predefined variables."
   (interactive)
@@ -297,20 +324,16 @@
 (defun jenkins--call-build-job-from-main-screen ()
   "Build job from main screen."
   (interactive)
-  (jenkins-job-call-build (tabulated-list-get-id))
-  )
+  (jenkins-job-call-build (tabulated-list-get-id)))
 
 (defun jenkins--call-build-job-from-job-screen ()
   "Call building job from job details in jenkins."
   (interactive)
-  (jenkins-job-call-build local-jobname)
-  )
-
-
+  (jenkins-job-call-build local-jobname))
 
 (defun jenkins-job-details-screen (jobname)
   "Jenkins job detailization screen, JOBNAME."
-  (let* ((job-details *jenkins-job-description*)
+  (let* ((job-details (jenkins-get-job-details jobname))
          (jobname (plist-get job-details :name))
          (builds (plist-get job-details :builds))
          (latest (cdar builds))
