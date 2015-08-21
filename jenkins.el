@@ -235,7 +235,10 @@
      ))
 
   (defun vector-take (N vec)
-    (--map (aref vec it) (number-sequence 0 (1- N))))
+    (--map
+     (aref vec it)
+     (number-sequence 0 (1- (min  N (length vec))))
+     ))
 
   (let* (
          (job-url (jenkins-job-url jenkins-hostname jobname))
@@ -282,7 +285,7 @@
 
   ;; buffer defaults
   (setq-local local-jobname jobname)
-  (setq-local local-jobs-shown nil)
+  ;; (setq-local local-jobs-shown nil)
   (setq major-mode 'jenkins-job-view-mode)
   (use-local-map jenkins-jobs-mode-map)
   )
@@ -347,8 +350,9 @@
      (propertize
       (concat
        (format
-        "Latest %s builds: ;; (press 1 to toggle)\n"
+        "Latest %s builds: "
         (length builds))
+       (propertize ";; (press 1 to toggle)\n" 'font-lock-face 'italic)
        (if local-jobs-shown
            (apply 'concat
                   (--map
@@ -363,8 +367,8 @@
                      (plist-get (cdr it) :result)
                      ))
                    builds)))))
-     "\n"
-     "Build now!"
+     "\nBuild now! "
+     (propertize ";; (press b to Build)\n" 'font-lock-face 'italic)
      ))
   )
 
