@@ -175,15 +175,18 @@
   (jenkins-get-jobs-list)
   (jenkins--convert-jobs-to-tabulated-format))
 
+(defun jenkins--get-auth-headers ()
+  "Helper function to setup auth header for jenkins url calls."
+   `(("Content-Type" . "application/x-www-form-urlencoded")
+     ("Authorization" .
+      ,(concat
+        "Basic "
+        (base64-encode-string
+         (concat jenkins-username ":" jenkins-api-token))))))
+
 (defun jenkins--retrieve-page-as-json (url)
   "Shortcut for jenkins api to return valid json"
-  (let* ((url-request-extra-headers
-          `(("Content-Type" . "application/x-www-form-urlencoded")
-            ("Authorization" .
-             ,(concat
-               "Basic "
-               (base64-encode-string
-                (concat jenkins-username ":" jenkins-api-token)))))))
+  (let ((url-request-extra-headers (jenkins--get-auth-headers)))
     (with-current-buffer (url-retrieve-synchronously url)
       (goto-char (point-min))
       (re-search-forward "^$")
@@ -216,7 +219,7 @@
    ))
 
 (defun jenkins-get-job-details (jobname)
-  "Make to certain job call"
+  "Make to particular job call"
 
   (defun convert-item (item)
     "Converting to item."
@@ -257,7 +260,7 @@
     ))
 
 ;; helpers
-(defun jenkins:visit-jenkins-web-page ()
+(defun jenkins-visit-jenkins-web-page ()
   "Open jenkins web page using predefined variables."
   (interactive)
   (unless jenkins-hostname
@@ -317,9 +320,14 @@
   )
 
 (defun jenkins-job-call-build (jobname)
-  "Call building job in jenkins."
-  (interactive)
-  (message (format "Building %s job started!" jobname)))
+  "Call jenkins build job function."
+  (let ((url-request-extra-headers (jenkins--get-auth-headers))
+        (url-request-method "POST")
+        (build-url (format "%sjob/%s/build" jenkins-hostname jobname)))
+    (if (y-or-n-p (format "Ready to start %s?" jobname))
+        (with-current-buffer (url-retrieve-synchronously build-url)
+          (message (format "Building %s job started!" jobname))))
+  ))
 
 (defun jenkins--call-build-job-from-main-screen ()
   "Build job from main screen."
