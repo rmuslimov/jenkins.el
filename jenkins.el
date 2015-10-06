@@ -62,7 +62,9 @@
 (defun jenkins-jobs-view-url (hostname viewname)
   "Jenkins url for get list of jobs in queue and their summaries."
   (format (concat
-           "%sview/%s/api/json?depth=2&tree=name,jobs[name,"
+           "%s"
+           (if viewname "view/%s/" viewname "")
+           "api/json?depth=2&tree=name,jobs[name,"
            "lastSuccessfulBuild[result,timestamp,duration,id],"
            "lastFailedBuild[result,timestamp,duration,id],"
            "lastBuild[result,executor[progress]],"
@@ -83,8 +85,6 @@
   "Ask from user required variables if they not defined yet"
   (unless jenkins-hostname
     (setq jenkins-hostname (read-from-minibuffer "Jenkins hostname: ")))
-  (unless jenkins-viewname
-    (setq jenkins-viewname (read-from-minibuffer "Jenkins viewname: ")))
   (unless jenkins-username
     (setq jenkins-username (read-from-minibuffer "Jenkins username: ")))
   (unless jenkins-api-token
