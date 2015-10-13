@@ -305,7 +305,7 @@
 (defun jenkins-job-view (jobname)
   "Open job details screen."
   (interactive)
-  (setq local-jobs-shown nil)
+  (setq local-jobs-shown t)
   (let ((details-buffer-name (format "*%s details*" jobname)))
     (switch-to-buffer details-buffer-name)
     (jenkins-job-render jobname)
