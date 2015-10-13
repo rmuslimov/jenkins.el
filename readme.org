@@ -1,3 +1,22 @@
 * Jenkins.el plugin for emacs
 
-Minimalistic jenkins plugin in development
+Minimalistic emacs-plugin for integration with Jenkins. Still in active development.
+
+* Installation
+
+Jenkins.el is trivial and requires next steps:
+
++ Clone repo to your local disk:
++ Add jenkins.el path to your emacs path
++ Configure next jenkins.el variables
+
+* Configuring views in jenkins
+
+* Main screen
+
+* Details screen
+
+
+* Coming soon
+
+*Enjoy!*
