@@ -28,6 +28,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
     (define-key map (kbd "r") 'jenkins-restart-job)
+    (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
     map)
   "Jenkins main screen status mode keymap.")
@@ -36,6 +37,7 @@
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
     (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
+    (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
     keymap)
   "Jenkins jobs status mode keymap.")
 
@@ -233,7 +235,7 @@
                  (cdar (aref culprits 0)) "---"))
      :url (retrieve 'url item)
      :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
-     :building (equal (retrieve 'building item) :json-true)
+     :building (retrieve 'building item)
      :result (retrieve 'result item)
      ))
 
@@ -251,21 +253,35 @@
           (caar (--filter (equal (plist-get (cdr it) :result) "SUCCESS") builds)))
          (latestFailed
           (caar (--filter (equal (plist-get (cdr it) :result) "FAILURE") builds)))
+         (latestFinished
+          (caar (--filter (equal (plist-get (cdr it) :building) :json-false) builds)))
          )
     (list :name jobname
           :builds builds
           :latestSuccessful latestSuccessful
           :latestFailed latestFailed
+          :latestFinished latestFinished
           )
     ))
 
 ;; helpers
 (defun jenkins-visit-jenkins-web-page ()
-  "Open jenkins web page using predefined variables."
+  "Open main jenkins web page using predefined variables."
   (interactive)
-  (unless jenkins-hostname
-    (setq jenkins-hostname (read-from-minibuffer "Jenkins hostname: ")))
   (browse-url jenkins-hostname))
+
+(defun jenkins-visit-job (jobname)
+  "Open job's webpage"
+  (interactive)
+  (browse-url (format "%s/job/%s/" jenkins-hostname jobname)))
+
+(defun jenkins--visit-job-from-main-screen ()
+  (interactive)
+  (jenkins-visit-job (tabulated-list-get-id)))
+
+(defun jenkins--visit-job-from-job-screen ()
+  (interactive)
+  (jenkins-visit-job local-jobname))
 
 ;; emacs major mode funcs and variables
 (define-derived-mode jenkins-mode tabulated-list-mode "Jenkins"
@@ -344,8 +360,8 @@
   (let* ((job-details (jenkins-get-job-details jobname))
          (jobname (plist-get job-details :name))
          (builds (plist-get job-details :builds))
-         (latest (cdar builds))
-         (latest-result (plist-get latest :result))
+         (latest (assoc (plist-get job-details :latestFinished) builds))
+         (latest-result (plist-get (cdr latest) :result))
          (latestSuccessful
           (cdr (assoc (plist-get job-details :latestSuccessful) builds)))
          )
@@ -377,6 +393,8 @@
                    builds)))))
      "\nBuild now! "
      (propertize ";; (press b to Build)\n" 'font-lock-face 'italic)
+     "View job's page "
+     (propertize ";; (press v to open browser)\n" 'font-lock-face 'italic)
      ))
   )
 
