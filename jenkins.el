@@ -3,7 +3,7 @@
 ;; Copyright (C) 2015  Rustem Muslimov
 
 ;; Author: Rustem Muslimov <r.muslimov@gmail.com>
-;; Keywords: convenience
+;; Keywords: jenkins, convenience
 ;; Package-Requires: ((dash "2.12") (emacs "24.3"))
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -92,7 +92,7 @@
   "Data retrieved from jenkins for main jenkins screen.")
 
 (defun jenkins--render-name (item)
-  "Render jobname for main jenkins jobs screen."
+  "Render jobname for main jenkins job ITEM screen."
   (let ((jobname (plist-get item :name))
         (progress (plist-get item :progress)))
     (if progress
@@ -101,30 +101,30 @@
                 jobname)
       (format "%s" jobname))))
 
-(defun jenkins-jobs-view-url (hostname viewname)
+(defun jenkins-jobs-view-url ()
   "Jenkins url for get list of jobs in queue and their summaries."
   (format (concat
            "%s"
-           (if viewname "view/%s/" viewname "")
+           (if jenkins-viewname "view/%s/" jenkins-viewname "")
            "api/json?depth=2&tree=name,jobs[name,"
            "lastSuccessfulBuild[result,timestamp,duration,id],"
            "lastFailedBuild[result,timestamp,duration,id],"
            "lastBuild[result,executor[progress]],"
            "lastCompletedBuild[result]]"
            )
-          hostname viewname))
+          jenkins-hostname jenkins-viewname))
 
-(defun jenkins-job-url (hostname jobname)
-  "Job url in jenkins"
+(defun jenkins-job-url (jobname)
+  "JOBNAME url in jenkins."
   (format (concat
            "%sjob/%s/"
            "api/json?depth=1&tree=builds"
            "[id,timestamp,result,url,building,"
            "culprits[fullName]]")
-          hostname jobname))
+          jenkins-hostname jobname))
 
 (defun jenkins--setup-variables ()
-  "Ask from user required variables if they not defined yet"
+  "Ask from user required variables if they not defined yet."
   (unless jenkins-hostname
     (setq jenkins-hostname (read-from-minibuffer "Jenkins hostname: ")))
   (unless jenkins-username
@@ -143,21 +143,21 @@
         :last-failed last-failed))
 
 (defun jenkins--get-proper-face-for-result (result)
-  "Simple function returning proper 'face for jenkins result."
+  "Simple function returning proper 'face for jenkins RESULT."
   (let ((facemap (list '("SUCCESS" . 'success)
                        '("FAILURE" . 'error)
                        '("ABORTED" . 'warning))))
     (cdr (assoc result facemap))))
 
 (defun jenkins--render-indicator (job)
-  "Special indicator on main jenkins window."
+  "Special indicator for each JOB on main jenkins window."
   (propertize
    "●" 'font-lock-face
    (jenkins--get-proper-face-for-result
     (plist-get job :result))))
 
 (defun jenkins--convert-jobs-to-tabulated-format ()
-  "Use global jenkins-jobs-list prepare data from table"
+  "Use global jenkins-jobs-list prepare data from table."
   (--map
    (list
     (plist-get it :name)
@@ -175,13 +175,13 @@
 ;;; actions
 
 (defun jenkins-enter-job (&optional jobindex)
-  "Open each job detalization page"
+  "Open each job detalization page, using JOBINDEX."
   (interactive)
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
     (jenkins-job-view jobindex)))
 
 (defun jenkins--time-since-to-text (timestamp)
-  "Returns beatiful string presenting time since event"
+  "Return beautiful string presenting TIMESTAMP since event."
   (defun jenkins--parse-time-from (time-since timeitems)
     (let* ((timeitem (car timeitems))
            (extracted-time (mod time-since (cdr timeitem)))
@@ -206,12 +206,12 @@
      ":")))
 
 (defun jenkins--refresh-jobs-list ()
-  "Force loading reloading jobs from jenkins and return them formatter for table"
+  "Force loading reloading jobs from jenkins and return them formatter for table."
   (jenkins-get-jobs-list)
   (jenkins--convert-jobs-to-tabulated-format))
 
 (defun jenkins--get-auth-headers ()
-  "Helper function to setup auth header for jenkins url calls."
+  "Helper function to setup auth header for jenkins url call."
   `(("Content-Type" . "application/x-www-form-urlencoded")
     ("Authorization" .
      ,(concat
@@ -220,7 +220,7 @@
         (concat jenkins-username ":" jenkins-api-token))))))
 
 (defun jenkins--retrieve-page-as-json (url)
-  "Shortcut for jenkins api to return valid json"
+  "Shortcut for jenkins api URL to return valid json."
   (let ((url-request-extra-headers (jenkins--get-auth-headers)))
     (with-current-buffer (url-retrieve-synchronously url)
       (goto-char (point-min))
@@ -230,15 +230,15 @@
     ))
 
 (defun jenkins--extract-time-of-build (x buildname)
-  "Helper defun to render timstamps"
+  "Helper defun to render timestamps."
   (let ((val (cdr (assoc 'timestamp (assoc buildname x)))))
     (if val (jenkins--time-since-to-text (/ val 1000)) "")))
 
 (defun jenkins-get-jobs-list ()
-  "Get list of jobs from jenkins server"
+  "Get list of jobs from jenkins server."
   (setq
    *jenkins-jobs-list*
-   (let* ((jobs-url (jenkins-jobs-view-url jenkins-hostname jenkins-viewname))
+   (let* ((jobs-url (jenkins-jobs-view-url))
           (raw-data (jenkins--retrieve-page-as-json jobs-url))
           (jobs (cdr (assoc 'jobs raw-data))))
      (--map
@@ -252,8 +252,7 @@
       jobs))))
 
 (defun jenkins-get-job-details (jobname)
-  "Make to particular job call"
-
+  "Make to particular JOBNAME call."
   (defun convert-item (item)
     "Converting to item."
     (defun retrieve (attr item)
@@ -276,7 +275,7 @@
      ))
 
   (let* (
-         (job-url (jenkins-job-url jenkins-hostname jobname))
+         (job-url (jenkins-job-url jobname))
          (raw-data (jenkins--retrieve-page-as-json job-url))
          (builds (-map 'convert-item (vector-take 25 (cdar raw-data))))
          (latestSuccessful
@@ -300,21 +299,23 @@
   (browse-url jenkins-hostname))
 
 (defun jenkins-visit-job (jobname)
-  "Open job's webpage"
+  "Open job's webpage using JOBNAME."
   (interactive)
   (browse-url (format "%s/job/%s/" jenkins-hostname jobname)))
 
 (defun jenkins--visit-job-from-main-screen ()
+  "Open browser for current job."
   (interactive)
   (jenkins-visit-job (tabulated-list-get-id)))
 
 (defun jenkins--visit-job-from-job-screen ()
+  "Open browser for current job."
   (interactive)
   (jenkins-visit-job jenkins-local-jobname))
 
 ;; emacs major mode funcs and variables
 (define-derived-mode jenkins-mode tabulated-list-mode "Jenkins"
-  "Special mode for jenkins status buffer"
+  "Special mode for jenkins status buffer."
   (setq truncate-lines t)
   (kill-all-local-variables)
   (setq mode-name "Jenkins")
@@ -332,6 +333,7 @@
   (setq-local jenkins-local-jobname jobname))
 
 (defun jenkins-job-render (jobname)
+  "Render details buffer for JOBNAME."
   (setq buffer-read-only nil)
   (erase-buffer)
   (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
@@ -341,7 +343,7 @@
   (setq buffer-read-only t))
 
 (defun jenkins-job-view (jobname)
-  "Open job details screen."
+  "Open JOBNAME details screen."
   (interactive)
   (setq local-jobs-shown t)
   (let ((details-buffer-name (format "*%s details*" jobname)))
@@ -350,13 +352,14 @@
     (jenkins-job-view-mode)))
 
 (defun jenkins-job-details-toggle ()
+  "Toggle builds list."
   (interactive)
   (setq-local local-jobs-shown (not local-jobs-shown))
   (jenkins-job-render jenkins-local-jobname)
   (goto-line 4))
 
 (defun jenkins-job-call-build (jobname)
-  "Call jenkins build job function."
+  "Call jenkins build JOBNAME function."
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (url-request-method "POST")
         (build-url (format "%sjob/%s/build" jenkins-hostname jobname)))
