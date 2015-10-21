@@ -27,7 +27,6 @@
 (defvar jenkins-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
-    (define-key map (kbd "r") 'jenkins-restart-job)
     (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
     map)
@@ -139,12 +138,6 @@
   (interactive)
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
     (jenkins-job-view jobindex)))
-
-(defun jenkins-restart-job (&optional jobindex)
-  "Build jenkins job"
-  (interactive)
-  (let (index (tabulated-list-get-id))
-    index))
 
 (defun jenkins--time-since-to-text (timestamp)
   "Returns beatiful string presenting time since event"

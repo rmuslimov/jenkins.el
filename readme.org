@@ -1,22 +1,51 @@
-* Jenkins.el plugin for emacs
+#+TITLE: Jenkins.el
 
 Minimalistic emacs-plugin for integration with Jenkins. Still in active development.
 
-* Installation
+** Installation
 
 Jenkins.el is trivial and requires next steps:
 
-+ Clone repo to your local disk:
++ Clone repo to your local disk
+#+begin_src shell
+$ git clone git@github.com:rmuslimov/jenkins.el.git
+#+end_src
 + Add jenkins.el path to your emacs path
+#+begin_src emacs-lisp
+(add-to-list 'load-path "<your local jenkins.el path>")
+#+end_src
 + Configure next jenkins.el variables
+#+begin_src emacs-lisp
+ (setq jenkins-api-token "<api token can be found on user's configure page>")
+ (setq jenkins-hostname "<jenkins url>")
+ (setq jenkins-username "<your user name>")
+ (setq jenkins-viewname "<viewname>") ;; if you're not using views skip this line
+#+end_src
+If you don't know your API token, it's easy to find it in jenkins user credentials page. Just visit:
+#+begin_src
+  Jenkins main page > People > %Select your user% > Configiure > Press on "Show API Token"
+#+end_src
+** Configuring views in jenkins
+Jenkins.el support using main view for user just define *jenkins-viewname* and it will be used as main view for jenkins.el.
+** Main screen
+[[file:main_screen.png]]
 
-* Configuring views in jenkins
++ See all jobs building at the moment
++ Start building job (press "b' when positioned on target job)
++ Visiting job's page (press "v")
++ Enter to job screen
 
-* Main screen
+** Job details screen
 
-* Details screen
+[[file:details_screen.png]]
 
++ Same functionalty as on main screen for particular job, plus latest 25 builds history.
+** Coming soon:
 
-* Coming soon
++ Separate screen for build in jenkins.el
++ Visiting build page from job screen
++ Retrieving raw console output for build
++ ...
+
 
 *Enjoy!*
