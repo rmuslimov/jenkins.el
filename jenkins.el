@@ -1,8 +1,28 @@
-;; jenkins.el --- small iteraction library for jenkins
+;;; jenkins.el --- Interact with a Jenkins CI server
+
+;; Copyright (C) 2015  Rustem Muslimov
+
+;; Author: Rustem Muslimov <r.muslimov@gmail.com>
+;; Keywords: convenience
+;; Package-Requires: ((dash "2.12") (emacs "24.3"))
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
-;; To proper installation, please define variables as it shown below:
+;; To set up, please use "M-x customize-group" to customize the
+;; "jenkins" options, or just directly define variables as shown below:
 ;;
 ;; (setq jenkins-api-token "<api token can be found on user's configure page>")
 ;; (setq jenkins-hostname "<jenkins url>")
@@ -32,7 +52,7 @@
     map)
   "Jenkins main screen status mode keymap.")
 
-(defvar jenkins-jobs-mode-map
+(defvar jenkins-job-view-mode-map
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
     (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
@@ -40,11 +60,32 @@
     keymap)
   "Jenkins jobs status mode keymap.")
 
-;; Setup this varialbles get proper working jenkins.el
-(defvar jenkins-api-token nil)
-(defvar jenkins-hostname nil)
-(defvar jenkins-username nil)
-(defvar jenkins-viewname nil)
+(defgroup jenkins nil
+  "Interact with a Jenkins CI server."
+  :prefix "jenkins-"
+  :group 'convenience)
+
+;; Set up these variables get proper working jenkins.el
+(defcustom jenkins-api-token nil
+  "API token on user's configure page."
+  :type 'string
+  :group 'jenkins)
+
+(defcustom jenkins-hostname nil
+  "Jenkins URL."
+  :type 'string
+  :group 'jenkins)
+
+(defcustom jenkins-username nil
+  "Username for Jenkins."
+  :type 'string
+  :group 'jenkins)
+
+(defcustom jenkins-viewname nil
+  "View name."
+  :type 'string
+  :group 'jenkins)
+
 
 (defvar *jenkins-jobs-list*
   nil
@@ -120,16 +161,16 @@
   (--map
    (list
     (plist-get it :name)
-    (apply 'vector (-map
-     (lambda (column)
-       (let* ((args (nthcdr 3 column))
-              (col-source (plist-get args :col-source)))
-         (if (functionp col-source)
-             (funcall col-source it)
-           (plist-get it col-source))))
-     jenkins-list-format)))
-   (mapcar 'cdr *jenkins-jobs-list*)
-   ))
+    (apply 'vector
+           (-map
+            (lambda (column)
+              (let* ((args (nthcdr 3 column))
+                     (col-source (plist-get args :col-source)))
+                (if (functionp col-source)
+                    (funcall col-source it)
+                  (plist-get it col-source))))
+            jenkins-list-format)))
+   (mapcar 'cdr *jenkins-jobs-list*)))
 
 ;;; actions
 
@@ -162,8 +203,7 @@
     (mapconcat
      (lambda (values) (apply 'format "%d%s" values))
      (-take 3 (reverse (--filter (not (= (car it) 0)) time-pairs)))
-     ":")
-    ))
+     ":")))
 
 (defun jenkins--refresh-jobs-list ()
   "Force loading reloading jobs from jenkins and return them formatter for table"
@@ -172,12 +212,12 @@
 
 (defun jenkins--get-auth-headers ()
   "Helper function to setup auth header for jenkins url calls."
-   `(("Content-Type" . "application/x-www-form-urlencoded")
-     ("Authorization" .
-      ,(concat
-        "Basic "
-        (base64-encode-string
-         (concat jenkins-username ":" jenkins-api-token))))))
+  `(("Content-Type" . "application/x-www-form-urlencoded")
+    ("Authorization" .
+     ,(concat
+       "Basic "
+       (base64-encode-string
+        (concat jenkins-username ":" jenkins-api-token))))))
 
 (defun jenkins--retrieve-page-as-json (url)
   "Shortcut for jenkins api to return valid json"
@@ -209,9 +249,7 @@
               (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
               (jenkins--extract-time-of-build it 'lastSuccessfulBuild)
               (jenkins--extract-time-of-build it 'lastFailedBuild)))
-      jobs)
-     )
-   ))
+      jobs))))
 
 (defun jenkins-get-job-details (jobname)
   "Make to particular job call"
@@ -225,12 +263,11 @@
      (string-to-number (retrieve 'id item))
      :author (let ((culprits (cdar item)))
                (if (> (length culprits) 0)
-                 (cdar (aref culprits 0)) "---"))
+                   (cdar (aref culprits 0)) "---"))
      :url (retrieve 'url item)
      :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
      :building (retrieve 'building item)
-     :result (retrieve 'result item)
-     ))
+     :result (retrieve 'result item)))
 
   (defun vector-take (N vec)
     (--map
@@ -254,8 +291,7 @@
           :latestSuccessful latestSuccessful
           :latestFailed latestFailed
           :latestFinished latestFinished
-          )
-    ))
+          )))
 
 ;; helpers
 (defun jenkins-visit-jenkins-web-page ()
@@ -274,7 +310,7 @@
 
 (defun jenkins--visit-job-from-job-screen ()
   (interactive)
-  (jenkins-visit-job local-jobname))
+  (jenkins-visit-job jenkins-local-jobname))
 
 ;; emacs major mode funcs and variables
 (define-derived-mode jenkins-mode tabulated-list-mode "Jenkins"
@@ -292,15 +328,8 @@
 
 (define-derived-mode jenkins-job-view-mode special-mode "jenkins-job"
   "Mode for viewing jenkins job details"
-  ;; (view-mode 1)
-  (font-lock-mode 1)
-
   ;; buffer defaults
-  (setq-local local-jobname jobname)
-  ;; (setq-local local-jobs-shown nil)
-  (setq major-mode 'jenkins-job-view-mode)
-  (use-local-map jenkins-jobs-mode-map)
-  )
+  (setq-local jenkins-local-jobname jobname))
 
 (defun jenkins-job-render (jobname)
   (setq buffer-read-only nil)
@@ -318,25 +347,22 @@
   (let ((details-buffer-name (format "*%s details*" jobname)))
     (switch-to-buffer details-buffer-name)
     (jenkins-job-render jobname)
-    (jenkins-job-view-mode)
-    ))
+    (jenkins-job-view-mode)))
 
 (defun jenkins-job-details-toggle ()
   (interactive)
   (setq-local local-jobs-shown (not local-jobs-shown))
-  (jenkins-job-render local-jobname)
-  (goto-line 4)
-  )
+  (jenkins-job-render jenkins-local-jobname)
+  (goto-line 4))
 
 (defun jenkins-job-call-build (jobname)
   "Call jenkins build job function."
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (url-request-method "POST")
         (build-url (format "%sjob/%s/build" jenkins-hostname jobname)))
-    (if (y-or-n-p (format "Ready to start %s?" jobname))
-        (with-current-buffer (url-retrieve-synchronously build-url)
-          (message (format "Building %s job started!" jobname))))
-  ))
+    (when (y-or-n-p (format "Ready to start %s?" jobname))
+      (with-current-buffer (url-retrieve-synchronously build-url)
+        (message (format "Building %s job started!" jobname))))))
 
 (defun jenkins--call-build-job-from-main-screen ()
   "Build job from main screen."
@@ -346,7 +372,7 @@
 (defun jenkins--call-build-job-from-job-screen ()
   "Call building job from job details in jenkins."
   (interactive)
-  (jenkins-job-call-build local-jobname))
+  (jenkins-job-call-build jenkins-local-jobname))
 
 (defun jenkins-job-details-screen (jobname)
   "Jenkins job detailization screen, JOBNAME."
@@ -388,9 +414,9 @@
      (propertize ";; (press b to Build)\n" 'font-lock-face 'italic)
      "View job's page "
      (propertize ";; (press v to open browser)\n" 'font-lock-face 'italic)
-     ))
-  )
+     )))
 
+;;;###autoload
 (defun jenkins ()
   "Initialize jenkins buffer."
   (interactive)
@@ -400,5 +426,6 @@
   (setq buffer-read-only t)
   (jenkins-mode))
 
+
 (provide 'jenkins)
-;;; jenkins ends here
+;;; jenkins.el ends here
