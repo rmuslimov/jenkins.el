@@ -1,8 +1,15 @@
 #+TITLE: Jenkins.el
 
-Minimalistic emacs-plugin for integration with Jenkins. Still in active development.
+[[https://melpa.org/#/jenkins][file:https://melpa.org/packages/jenkins-badge.svg]]
 
-** Installation
+Minimalistic emacs-plugin for integration with Jenkins. Still in active development.
+** Installation from MELPA
+   This package available on MELPA.
+#+begin_src
+M-x package-install RET paradox
+#+end_src
+
+** Installation from source
 
 Jenkins.el is trivial and requires next steps:
 
