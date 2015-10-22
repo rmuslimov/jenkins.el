@@ -92,6 +92,9 @@
   nil
   "Data retrieved from jenkins for main jenkins screen.")
 
+(defvar jenkins-local-jobname)
+(defvar jenkins-local-jobs-shown nil)
+
 (defun jenkins--render-name (item)
   "Render jobname for main jenkins job ITEM screen."
   (let ((jobname (plist-get item :name))
@@ -342,7 +345,7 @@
 (defun jenkins-job-view (jobname)
   "Open JOBNAME details screen."
   (interactive)
-  (setq local-jobs-shown t)
+  (setq jenkins-local-jobs-shown t)
   (let ((details-buffer-name (format "*%s details*" jobname)))
     (switch-to-buffer details-buffer-name)
     (jenkins-job-render jobname)
@@ -351,7 +354,7 @@
 (defun jenkins-job-details-toggle ()
   "Toggle builds list."
   (interactive)
-  (setq-local local-jobs-shown (not local-jobs-shown))
+  (setq-local jenkins-local-jobs-shown (not jenkins-local-jobs-shown))
   (jenkins-job-render jenkins-local-jobname)
   (goto-line 4))
 
@@ -396,7 +399,7 @@
         "Latest %s builds: "
         (length builds))
        (propertize ";; (press 1 to toggle)\n" 'font-lock-face 'italic)
-       (if local-jobs-shown
+       (if jenkins-local-jobs-shown
            (apply 'concat
                   (--map
                    (propertize
