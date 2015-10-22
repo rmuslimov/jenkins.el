@@ -1,4 +1,4 @@
-;;; jenkins.el --- Interact with a Jenkins CI server
+;;; jenkins.el --- Minimalistic Jenkins client for Emacs
 
 ;; Copyright (C) 2015  Rustem Muslimov
 
