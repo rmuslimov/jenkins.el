@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'dash)
+(require 'cl-lib)
 
 (defconst jenkins-buffer-name
   "*jenkins-status*"
@@ -180,20 +181,20 @@
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
     (jenkins-job-view jobindex)))
 
+(defun jenkins--parse-time-from (time-since timeitems)
+  (let* ((timeitem (car timeitems))
+         (extracted-time (mod time-since (cdr timeitem)))
+         (rest-time (/ (- time-since extracted-time) (cdr timeitem)))
+         )
+    (if (cdr timeitems)
+        (apply 'list
+               (list extracted-time (car timeitem))
+               (jenkins--parse-time-from rest-time (cdr timeitems)))
+      (list (list time-since (car timeitem)))
+      )))
+
 (defun jenkins--time-since-to-text (timestamp)
   "Return beautiful string presenting TIMESTAMP since event."
-  (defun jenkins--parse-time-from (time-since timeitems)
-    (let* ((timeitem (car timeitems))
-           (extracted-time (mod time-since (cdr timeitem)))
-           (rest-time (/ (- time-since extracted-time) (cdr timeitem)))
-           )
-      (if (cdr timeitems)
-          (apply 'list
-                 (list extracted-time (car timeitem))
-                 (jenkins--parse-time-from rest-time (cdr timeitems)))
-        (list (list time-since (car timeitem)))
-        )))
-
   (let* ((timeitems
           '(("s" . 60) ("m" . 60)
             ("h" . 24) ("d" . 1)))
@@ -253,28 +254,24 @@
 
 (defun jenkins-get-job-details (jobname)
   "Make to particular JOBNAME call."
-  (defun convert-item (item)
-    "Converting to item."
-    (defun retrieve (attr item)
-      (cdr (assoc attr (cdr item))))
-
-    (list
-     (string-to-number (retrieve 'id item))
-     :author (let ((culprits (cdar item)))
-               (if (> (length culprits) 0)
-                   (cdar (aref culprits 0)) "---"))
-     :url (retrieve 'url item)
-     :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
-     :building (retrieve 'building item)
-     :result (retrieve 'result item)))
-
-  (defun vector-take (N vec)
-    (--map
-     (aref vec it)
-     (number-sequence 0 (1- (min  N (length vec))))
-     ))
-
-  (let* (
+  (cl-labels ((convert-item (item)
+                (cl-labels ((retrieve (attr item)
+                              (cdr (assoc attr (cdr item)))))
+                  (list
+                   (string-to-number (retrieve 'id item))
+                   :author (let ((culprits (cdar item)))
+                             (if (> (length culprits) 0)
+                                 (cdar (aref culprits 0)) "---"))
+                   :url (retrieve 'url item)
+                   :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
+                   :building (retrieve 'building item)
+                   :result (retrieve 'result item))))
+              (vector-take (N vec)
+                (--map
+                 (aref vec it)
+                 (number-sequence 0 (1- (min  N (length vec))))
+                 )))
+    (let* (
          (job-url (jenkins-job-url jobname))
          (raw-data (jenkins--retrieve-page-as-json job-url))
          (builds (-map 'convert-item (vector-take 25 (cdar raw-data))))
@@ -290,7 +287,7 @@
           :latestSuccessful latestSuccessful
           :latestFailed latestFailed
           :latestFinished latestFinished
-          )))
+          ))))
 
 ;; helpers
 (defun jenkins-visit-jenkins-web-page ()
