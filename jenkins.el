@@ -33,6 +33,7 @@
 
 (require 'dash)
 (require 'cl-lib)
+(require 'json)
 
 (defconst jenkins-buffer-name
   "*jenkins-status*"
