@@ -6,7 +6,7 @@ Minimalistic emacs-plugin for integration with Jenkins. Still in active developm
 ** Installation from MELPA
    This package available on MELPA.
 #+begin_src
-M-x package-install RET paradox
+M-x package-install RET jenkins
 #+end_src
 
 ** Installation from source
