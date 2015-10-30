@@ -30,7 +30,7 @@ $ git clone git@github.com:rmuslimov/jenkins.el.git
 #+end_src
 If you don't know your API token, it's easy to find it in jenkins user credentials page. Just visit:
 #+begin_src
-  Jenkins main page > People > %Select your user% > Configiure > Press on "Show API Token"
+  Jenkins main page > People > %Select your user% > Configure > Press on "Show API Token"
 #+end_src
 ** Configuring views in jenkins
 Jenkins.el support using main view for user just define *jenkins-viewname* and it will be used as main view for jenkins.el.
@@ -46,7 +46,7 @@ Jenkins.el support using main view for user just define *jenkins-viewname* and i
 
 [[file:details_screen.png]]
 
-+ Same functionalty as on main screen for particular job, plus latest 25 builds history.
++ Same functionality as on main screen for particular job, plus latest 25 builds history.
 ** Coming soon:
 
 + Separate screen for build in jenkins.el
