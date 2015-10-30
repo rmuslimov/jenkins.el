@@ -24,7 +24,7 @@ $ git clone git@github.com:rmuslimov/jenkins.el.git
 + Configure next jenkins.el variables
 #+begin_src emacs-lisp
  (setq jenkins-api-token "<api token can be found on user's configure page>")
- (setq jenkins-hostname "<jenkins url>")
+ (setq jenkins-url "<jenkins url. Example: https://jenkins.company.com/ >")
  (setq jenkins-username "<your user name>")
  (setq jenkins-viewname "<viewname>") ;; if you're not using views skip this line
 #+end_src
