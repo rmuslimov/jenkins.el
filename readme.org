@@ -32,8 +32,15 @@ If you don't know your API token, it's easy to find it in jenkins user credentia
 #+begin_src
   Jenkins main page > People > %Select your user% > Configure > Press on "Show API Token"
 #+end_src
-** Configuring views in jenkins
-Jenkins.el support using main view for user just define *jenkins-viewname* and it will be used as main view for jenkins.el.
+** Configure
+*** Views
+    Jenkins.el support using main view for user just define *jenkins-viewname* and it will be used as main view for jenkins.el.
+*** Column width for main view
+    It's easy to configure the width of column on main jenkins view. Just set appropiate value with *M-x customize* or set it manually:
+#+begin_src elisp
+$ (setq jenkins-colwidth-name 35) ;; or jenkins-colwidth-id, jenkins-colwidth-last-status
+#+end_src
+
 ** Main screen
 [[file:main_screen.png]]
 
