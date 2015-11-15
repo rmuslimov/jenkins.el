@@ -284,9 +284,9 @@
 
 (defun jenkins-get-job-details (jobname)
   "Make to particular JOBNAME call."
-  (cl-labels ((convert-item (item)
-                (cl-labels ((retrieve (attr item)
-                              (cdr (assoc attr (cdr item)))))
+  (cl-labels ((retrieve (attr item)
+                        (cdr (assoc attr item)))
+              (convert-item (item)
                   (list
                    (string-to-number (retrieve 'id item))
                    :author (let ((culprits (cdr (assoc 'culprits values))))
@@ -295,12 +295,11 @@
                    :url (retrieve 'url item)
                    :timestring (jenkins--time-since-to-text (/ (retrieve 'timestamp item) 1000))
                    :building (retrieve 'building item)
-                   :result (retrieve 'result item))))
+                   :result (retrieve 'result item)))
               (vector-take (N vec)
                 (--map
                  (aref vec it)
-                 (number-sequence 0 (1- (min  N (length vec))))
-                 )))
+                 (number-sequence 0 (1- (min  N (length vec)))))))
     (let* (
          (job-url (jenkins-job-url jobname))
          (raw-data (jenkins--retrieve-page-as-json job-url))
