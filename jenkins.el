@@ -289,7 +289,7 @@
                               (cdr (assoc attr (cdr item)))))
                   (list
                    (string-to-number (retrieve 'id item))
-                   :author (let ((culprits (cdar item)))
+                   :author (let ((culprits (cdr (assoc 'culprits values))))
                              (if (> (length culprits) 0)
                                  (cdar (aref culprits 0)) "---"))
                    :url (retrieve 'url item)
