@@ -52,7 +52,7 @@
     (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
     (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
     (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
-    (define-key keymap (kbd "c") 'jenkins--show-console-output-from-job-screen)
+    (define-key keymap (kbd "$") 'jenkins--show-console-output-from-job-screen)
     keymap)
   "Jenkins jobs status mode keymap.")
 
@@ -329,8 +329,6 @@
   "Open job's webpage using JOBNAME."
   (interactive)
   (browse-url (format "%s/job/%s/" (get-jenkins-url) jobname)))
-
-(jenkins-get-console-output "portal_master" 11)
 
 (defun jenkins-get-console-output (jobname build)
   "Show the console output for the current job"
