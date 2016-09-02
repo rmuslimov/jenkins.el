@@ -335,7 +335,7 @@
 (defun jenkins-get-console-output (jobname build)
   "Show the console output for the current job"
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
-        (console-buffer (get-buffer-create (format "*jenkins-console-%s*-%s" jobname build)))
+        (console-buffer (get-buffer-create (format "*jenkins-console-%s-%s*" jobname build)))
         (url (format "%sjob/%s/%s/consoleText" (get-jenkins-url) jobname build)))
     (with-current-buffer console-buffer
       (erase-buffer)
