@@ -50,6 +50,7 @@
 (defvar jenkins-job-view-mode-map
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
+    (define-key keymap (kbd "g") 'jenkins--refresh-job-from-job-screen)
     (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
     (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
     keymap)
@@ -402,6 +403,11 @@
   "Call building job from job details in jenkins."
   (interactive)
   (jenkins-job-call-build jenkins-local-jobname))
+
+(defun jenkins--refresh-job-from-job-screen ()
+  "Refresh the current job"
+  (interactive)
+  (jenkins-job-render jenkins-local-jobname))
 
 (defun jenkins-job-details-screen (jobname)
   "Jenkins job detailization screen, JOBNAME."
