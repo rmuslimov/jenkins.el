@@ -114,7 +114,11 @@
 
 (defun get-jenkins-url ()
   "This function is for backward compatibility."
-  (or jenkins-url jenkins-hostname))
+  (let ((url (or jenkins-url jenkins-hostname)))
+    ;; Ensure URL ends with /.
+    (if (string-match-p (rx "/" string-end) url)
+        url
+      (concat url "/"))))
 
 
 (defvar *jenkins-jobs-list*
