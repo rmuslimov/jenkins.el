@@ -305,7 +305,7 @@
     (let* (
          (job-url (jenkins-job-url jobname))
          (raw-data (jenkins--retrieve-page-as-json job-url))
-         (builds (-map #'convert-item (vector-take 25 (cdar raw-data))))
+         (builds (-map #'convert-item (vector-take 25 (alist-get 'builds raw-data))))
          (latestSuccessful
           (caar (--filter (equal (plist-get (cdr it) :result) "SUCCESS") builds)))
          (latestFailed
