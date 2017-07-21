@@ -485,8 +485,9 @@
   "Initialize jenkins buffer."
   (interactive)
   (jenkins--setup-variables)
-  (switch-to-buffer-other-window jenkins-buffer-name)
-  (erase-buffer)
+  (pop-to-buffer jenkins-buffer-name)
+  (let ((inhibit-read-only t))
+    (erase-buffer))
   (setq buffer-read-only t)
   (jenkins-mode))
 
