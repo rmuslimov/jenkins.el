@@ -57,6 +57,12 @@
     keymap)
   "Jenkins jobs status mode keymap.")
 
+(defvar jenkins-console-output-mode-map
+  (let ((keymap (make-sparse-keymap)))
+    (define-key keymap (kbd "q") 'kill-this-buffer)
+    keymap)
+  "Jenkins jobs console output mode keymap.")
+
 (defgroup jenkins nil
   "Interact with a Jenkins CI server."
   :prefix "jenkins-"
@@ -341,10 +347,12 @@
         (console-buffer (get-buffer-create (format "*jenkins-console-%s-%s*" jobname build)))
         (url (format "%sjob/%s/%s/consoleText" (get-jenkins-url) jobname build)))
     (with-current-buffer console-buffer
+      (read-only-mode -1)    ; make sure buffer is writable
       (erase-buffer)
       (with-current-buffer (url-retrieve-synchronously url)
         (copy-to-buffer console-buffer (point-min) (point-max))))
-    (pop-to-buffer console-buffer)))
+    (pop-to-buffer console-buffer)
+    (jenkins-console-output-mode)))
 
 (defun jenkins--visit-job-from-main-screen ()
   "Open browser for current job."
@@ -385,6 +393,11 @@
   "Mode for viewing jenkins job details"
   ;; buffer defaults
   (setq-local jenkins-local-jobname jobname))
+
+(define-derived-mode jenkins-console-output-mode special-mode "jenkins-console-output"
+  "Mode for viewing jenkins console output"
+  ;; make buffer readonly
+  (read-only-mode))
 
 (defun jenkins-job-render (jobname)
   "Render details buffer for JOBNAME."
