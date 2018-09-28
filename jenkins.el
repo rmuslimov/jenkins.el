@@ -103,6 +103,11 @@
   :type 'integer
   :group 'jenkins)
 
+(defcustom jenkins-build-parameter nil
+  "Build parameter for Jenkins."
+  :type 'string
+  :group 'jenkins)
+
 (defun jenkins-list-format ()
   "List of columns for main jenkins jobs screen."
   (apply 'vector
@@ -416,7 +421,11 @@
   "Call jenkins build JOBNAME function."
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (url-request-method "POST")
-        (build-url (format "%sjob/%s/build" (get-jenkins-url) jobname)))
+        (build-url (format "%sjob/%s/build%s"
+                           (get-jenkins-url)
+                           jobname
+                           (if jenkins-build-parameter
+                               (concat "?" jenkins-build-parameter) ""))))
     (when (y-or-n-p (format "Ready to start %s?" jobname))
       (with-current-buffer (url-retrieve-synchronously build-url)
         (message (format "Building %s job started!" jobname))))))
