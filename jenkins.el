@@ -343,7 +343,8 @@
     (with-current-buffer console-buffer
       (erase-buffer)
       (with-current-buffer (url-retrieve-synchronously url)
-        (copy-to-buffer console-buffer (point-min) (point-max))))
+        (copy-to-buffer console-buffer (point-min) (point-max)))
+      (read-only-mode 1))
     (pop-to-buffer console-buffer)))
 
 (defun jenkins--visit-job-from-main-screen ()
