@@ -350,6 +350,7 @@
       (read-only-mode -1)    ; make sure buffer is writable
       (erase-buffer)
       (with-current-buffer (url-retrieve-synchronously url)
+
         (copy-to-buffer console-buffer (point-min) (point-max))))
     (pop-to-buffer console-buffer)
     (jenkins-console-output-mode)))
@@ -491,6 +492,8 @@
      (propertize ";; (press b to Build)\n" 'font-lock-face 'italic)
      "View job's page "
      (propertize ";; (press v to open browser)\n" 'font-lock-face 'italic)
+     "View job's console output"
+     (propertize ";; (press $ to open a new buffer with the text log)\n" 'font-lock-face 'italic)
      )))
 
 ;;;###autoload
