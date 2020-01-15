@@ -42,6 +42,7 @@
 (defvar jenkins-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
+    (define-key map (kbd "r") 'jenkins--call-rebuild-job-from-main-screen)
     (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
     map)
@@ -52,6 +53,7 @@
     (define-key keymap (kbd "1") 'jenkins-job-details-toggle)
     (define-key keymap (kbd "g") 'jenkins--refresh-job-from-job-screen)
     (define-key keymap (kbd "b") 'jenkins--call-build-job-from-job-screen)
+    (define-key keymap (kbd "r") 'jenkins--call-rebuild-job-from-job-screen)
     (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
     (define-key keymap (kbd "$") 'jenkins--show-console-output-from-job-screen)
     keymap)
@@ -435,6 +437,15 @@
       (with-current-buffer (url-retrieve-synchronously build-url)
         (message (format "Building %s job started!" jobname))))))
 
+(defun jenkins-job-call-rebuild (jobname)
+  "Call jenkins build JOBNAME function."
+  (let ((url-request-extra-headers (jenkins--get-auth-headers))
+        (url-request-method "GET")
+        (build-url (format "%sjob/%s/lastCompletedBuild/rebuild/" (get-jenkins-url) jobname)))
+    (when (y-or-n-p (format "Ready to rebuild %s?" jobname))
+      (with-current-buffer (url-retrieve-synchronously build-url)
+        (message (format "Building %s job started!" jobname))))))
+
 (defun jenkins--call-build-job-from-main-screen ()
   "Build job from main screen."
   (interactive)
@@ -444,6 +455,16 @@
   "Call building job from job details in jenkins."
   (interactive)
   (jenkins-job-call-build jenkins-local-jobname))
+
+(defun jenkins--call-rebuild-job-from-main-screen ()
+  "rebuild job from main screen."
+  (interactive)
+  (jenkins-job-call-rebuild (tabulated-list-get-id)))
+
+(defun jenkins--call-rebuild-job-from-job-screen ()
+  "Call rebuilding job from job details in jenkins."
+  (interactive)
+  (jenkins-job-call-rebuild jenkins-local-jobname))
 
 (defun jenkins--refresh-job-from-job-screen ()
   "Refresh the current job"
@@ -490,6 +511,8 @@
                    builds)))))
      "\nBuild now! "
      (propertize ";; (press b to Build)\n" 'font-lock-face 'italic)
+     "Rebuild last run! "
+     (propertize ";; (press r to Rebuild)\n" 'font-lock-face 'italic)
      "View job's page "
      (propertize ";; (press v to open browser)\n" 'font-lock-face 'italic)
      "View job's console output"
