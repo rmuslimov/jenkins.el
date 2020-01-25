@@ -351,7 +351,9 @@
 (defun jenkins-visit-job (jobname)
   "Open job's webpage using JOBNAME."
   (interactive)
-  (browse-url (format "%s/job/%s/" (get-jenkins-url) jobname)))
+  (browse-url (format (concat "%s" (if jenkins-foldername (format "job/%s/" jenkins-foldername) "")
+                              "/job/%s/")
+                      (get-jenkins-url) jobname)))
 
 (defun jenkins-get-console-output (jobname build)
   "Show the console output for the current job"
