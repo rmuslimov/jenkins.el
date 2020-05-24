@@ -262,7 +262,7 @@
      ,(concat
        "Basic "
        (base64-encode-string
-        (concat jenkins-username ":" jenkins-api-token))))))
+        (concat jenkins-username ":" jenkins-api-token) t)))))
 
 (defun jenkins--retrieve-page-as-json (url)
   "Shortcut for jenkins api URL to return valid json."
