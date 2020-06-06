@@ -28,6 +28,7 @@
 ;; (setq jenkins-url "<jenkins url>")
 ;; (setq jenkins-username "<your user name>")
 ;; (setq jenkins-viewname "<viewname>")
+;; (setq jenkins-foldername "<foldername>")
 
 ;;; Code:
 
@@ -96,6 +97,11 @@
   :type 'string
   :group 'jenkins)
 
+(defcustom jenkins-foldername nil
+  "View name."
+  :type 'string
+  :group 'jenkins)
+
 (defcustom jenkins-colwidth-id 3
   "Id column's width on main view."
   :type 'integer
@@ -150,19 +156,23 @@
   "Jenkins url for get list of jobs in queue and their summaries."
   (format (concat
            "%s"
-           (if jenkins-viewname "view/%s/" jenkins-viewname "")
+           (cond (jenkins-viewname "view/%s/")
+                 (jenkins-foldername "job/%s/")
+                 (t ""))
            "api/json?depth=2&tree=name,jobs[name,"
            "lastSuccessfulBuild[result,timestamp,duration,id],"
            "lastFailedBuild[result,timestamp,duration,id],"
            "lastBuild[result,executor[progress]],"
            "lastCompletedBuild[result]]"
            )
-          (get-jenkins-url) jenkins-viewname))
+          (get-jenkins-url) (or jenkins-viewname jenkins-foldername)))
 
 (defun jenkins-job-url (jobname)
   "JOBNAME url in jenkins."
   (format (concat
-           "%sjob/%s/"
+           "%s"
+           (if jenkins-foldername (format "job/%s/" jenkins-foldername) "")
+           "job/%s/"
            "api/json?depth=1&tree=builds"
            "[number,timestamp,result,url,building,"
            "culprits[fullName]]")
@@ -341,7 +351,9 @@
 (defun jenkins-visit-job (jobname)
   "Open job's webpage using JOBNAME."
   (interactive)
-  (browse-url (format "%s/job/%s/" (get-jenkins-url) jobname)))
+  (browse-url (format (concat "%s" (if jenkins-foldername (format "job/%s/" jenkins-foldername) "")
+                              "/job/%s/")
+                      (get-jenkins-url) jobname)))
 
 (defun jenkins-get-console-output (jobname build)
   "Show the console output for the current job"
