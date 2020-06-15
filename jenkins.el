@@ -470,6 +470,8 @@
            (jenkins-mode))
           ((string-equal "org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject" class)
            (jenkins-mode))
+          ((string-equal "com.cloudbees.hudson.plugins.folder.Folder" class)
+           (jenkins-mode))
         (t (progn
              (switch-to-buffer details-buffer-name)
              (jenkins-job-render jobname)
