@@ -45,7 +45,6 @@
     (define-key map (kbd "r") 'jenkins--call-rebuild-job-from-main-screen)
     (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
-    (define-key map (kbd "o") 'jenkins-enter-org)
     (define-key map (kbd "q") 'jenkins-pop-and-reload)
     map)
   "Jenkins main screen status mode keymap.")
@@ -447,17 +446,6 @@
   ;; make buffer readonly
   (read-only-mode))
 
-(defun jenkins-org-render (orgname)
-  "Render details buffer for ORGNAME."
-  (setq buffer-read-only nil)
-  (erase-buffer)
-  (let ((job (cdr (assoc orgname *jenkins-jobs-list*))))
-    (insert
-     (jenkins-job-org-screen orgname)
-     ))
-  (setq buffer-read-only t))
-
-
 (defun jenkins-job-render (jobname)
   "Render details buffer for JOBNAME."
   (setq buffer-read-only nil)
@@ -536,53 +524,6 @@
   "Refresh the current job"
   (interactive)
   (jenkins-job-render jenkins-local-jobname))
-
-
-(defun jenkins-get-org-details (orgname)
-  "Make to particular ORGNAME call."
-  (cl-labels ((retrieve (attr item)
-                        (cdr (assoc attr item)))
-              (convert-item (item)
-                  (list
-                   (retrieve 'number item)
-                   :url (retrieve 'url item)
-                   :name (retrieve 'name item)
-                   :health (retrieve 'result item)))
-              (vector-take (N vec)
-                (--map
-                 (aref vec it)
-                 (number-sequence 0 (1- (min  N (length vec)))))))
-    (let* (
-         (job-url (jenkins-job-url jobname))
-         (raw-data (jenkins--retrieve-page-as-json job-url))
-         (builds (-map #'convert-item (vector-take 25 (alist-get 'builds raw-data))))
-         (latestSuccessful
-          (caar (--filter (equal (plist-get (cdr it) :result) "SUCCESS") builds)))
-         (latestFailed
-          (caar (--filter (equal (plist-get (cdr it) :result) "FAILURE") builds)))
-         (latestFinished
-          (caar (--filter (equal (plist-get (cdr it) :building) :json-false) builds)))
-         )
-    (list :name jobname
-          :builds builds
-          :latestSuccessful latestSuccessful
-          :latestFailed latestFailed
-          :latestFinished latestFinished
-          ))))
-
-
-
-(defun jenkins-org-details-screen (orgname)
-  "Jenkins organization detailization screen, ORGNAME."
-  (let* ((org-details (jenkins-get-job-details orgname))
-         (orgname (plist-get org-details :name))
-         (health (plist-get org-details :healthReport))
-         (score (plist-get health :score)))
-    (concat
-     (format "Org name:\t%s\n" orgname)
-     (format "score:\t\t%s" score)
-     )))
-
 
 (defun jenkins-job-details-screen (jobname)
   "Jenkins job detailization screen, JOBNAME."
