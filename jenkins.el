@@ -39,12 +39,6 @@
   "*jenkins: status*"
   "Name of jenkins buffer.")
 
-(defun quit-window-and-pop ()
-  "Close window and update breadcrumb."
-  (interactive)
-  (pop *jenkins-breadcrumbs*)
-  (quit-window))
-
 (defvar jenkins-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "b") 'jenkins--call-build-job-from-main-screen)
@@ -52,7 +46,7 @@
     (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
     (define-key map (kbd "o") 'jenkins-enter-org)
-    (define-key map (kbd "q") 'quit-window-and-pop)
+    (define-key map (kbd "q") 'jenkins-pop-and-reload)
     map)
   "Jenkins main screen status mode keymap.")
 
@@ -64,7 +58,7 @@
     (define-key keymap (kbd "r") 'jenkins--call-rebuild-job-from-job-screen)
     (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
     (define-key keymap (kbd "$") 'jenkins--show-console-output-from-job-screen)
-    (define-key keymap (kbd "q") 'quit-window-and-pop)
+    (define-key keymap (kbd "q") 'jenkins-quit-window-and-pop)
     keymap)
   "Jenkins jobs status mode keymap.")
 
@@ -148,6 +142,22 @@
 
 (defvar jenkins-local-jobname)
 (defvar jenkins-local-jobs-shown nil)
+
+(defun jenkins-quit-window-and-pop ()
+  "Close window and update breadcrumb."
+  (interactive)
+  (pop *jenkins-breadcrumbs*)
+  (quit-window))
+
+(defun jenkins-pop-and-reload ()
+  "Pop the breadcrumb and reload the jenkins window."
+  (interactive)
+  (pop *jenkins-breadcrumbs*)
+  (pop-to-buffer jenkins-buffer-name)
+  (let ((inhibit-read-only t))
+    (erase-buffer))
+  (setq buffer-read-only t)
+  (jenkins-mode))
 
 (defun jenkins--render-name (item)
   "Render jobname for main jenkins job ITEM screen."
