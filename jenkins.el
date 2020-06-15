@@ -246,8 +246,10 @@
   "Open each job detalization page, using JOBINDEX."
   (interactive)
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
-    (push jobindex *jenkins-breadcrumbs*)
-    (jenkins-job-view jobindex)))
+    (if jobindex
+        (progn
+          (push jobindex *jenkins-breadcrumbs*)
+          (jenkins-job-view jobindex)))))
 
 (defun jenkins--parse-time-from (time-since timeitems)
   (let* ((timeitem (car timeitems))
