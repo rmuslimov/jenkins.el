@@ -45,6 +45,7 @@
     (define-key map (kbd "r") 'jenkins--call-rebuild-job-from-main-screen)
     (define-key map (kbd "v") 'jenkins--visit-job-from-main-screen)
     (define-key map (kbd "RET") 'jenkins-enter-job)
+    (define-key map (kbd "q") 'jenkins-pop-and-reload)
     map)
   "Jenkins main screen status mode keymap.")
 
@@ -56,13 +57,14 @@
     (define-key keymap (kbd "r") 'jenkins--call-rebuild-job-from-job-screen)
     (define-key keymap (kbd "v") 'jenkins--visit-job-from-job-screen)
     (define-key keymap (kbd "$") 'jenkins--show-console-output-from-job-screen)
+    (define-key keymap (kbd "q") 'jenkins-quit-window-and-pop)
     keymap)
   "Jenkins jobs status mode keymap.")
 
 (defvar jenkins-console-output-mode-map
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "q") 'kill-this-buffer)
-    keymap)
+     keymap)
   "Jenkins jobs console output mode keymap.")
 
 (defgroup jenkins nil
@@ -133,8 +135,31 @@
   nil
   "Data retrieved from jenkins for main jenkins screen.")
 
+(defvar *jenkins-breadcrumbs*
+  '()
+  "Jenkins breadcrumbs.")
+
 (defvar jenkins-local-jobname)
 (defvar jenkins-local-jobs-shown nil)
+
+(defun jenkins-quit-window-and-pop ()
+  "Close window and update breadcrumb."
+  (interactive)
+  (pop *jenkins-breadcrumbs*)
+  (quit-window))
+
+(defun jenkins-pop-and-reload ()
+  "Pop the breadcrumb and reload the jenkins window."
+  (interactive)
+  (if (= 0 (length *jenkins-breadcrumbs*))
+      (quit-window)
+    (progn
+      (pop *jenkins-breadcrumbs*)
+      (pop-to-buffer jenkins-buffer-name)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (setq buffer-read-only t)
+      (jenkins-mode))))
 
 (defun jenkins--render-name (item)
   "Render jobname for main jenkins job ITEM screen."
@@ -151,19 +176,28 @@
   (format (concat
            "%s"
            (if jenkins-viewname "view/%s/" jenkins-viewname "")
-           "api/json?depth=2&tree=name,jobs[name,"
+           (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/")
+           "/api/"
+           "json?depth=2&tree=name,jobs[name,class"
            "lastSuccessfulBuild[result,timestamp,duration,id],"
            "lastFailedBuild[result,timestamp,duration,id],"
            "lastBuild[result,executor[progress]],"
-           "lastCompletedBuild[result]]"
+           "lastCompletedBuild[result]],"
+           "class,"
+           "lastSuccessfulBuild[result,timestamp,duration,id],"
+           "lastFailedBuild[result,timestamp,duration,id],"
+           "lastBuild[result,executor[progress]],"
+           "lastCompletedBuild[result]"
            )
           (get-jenkins-url) jenkins-viewname))
 
 (defun jenkins-job-url (jobname)
   "JOBNAME url in jenkins."
   (format (concat
-           "%sjob/%s/"
-           "api/json?depth=1&tree=builds"
+           "%s"
+           (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/")
+           ;;"/job/%s/"
+           "/api/json?depth=1&tree=builds"
            "[number,timestamp,result,url,building,"
            "culprits[fullName]]")
           (get-jenkins-url) jobname))
@@ -179,13 +213,14 @@
 
 ;; models
 
-(defun jenkins--make-job (name result progress last-success last-failed)
+(defun jenkins--make-job (class name result progress last-success last-failed)
   "Define regular jenkins job here."
   (list :name name
         :result result
         :progress progress
         :last-success last-success
-        :last-failed last-failed))
+        :last-failed last-failed
+        :class class))
 
 (defun jenkins--get-proper-face-for-result (result)
   "Simple function returning proper 'face for jenkins RESULT."
@@ -223,7 +258,10 @@
   "Open each job detalization page, using JOBINDEX."
   (interactive)
   (let ((jobindex (or jobindex (tabulated-list-get-id))))
-    (jenkins-job-view jobindex)))
+    (if jobindex
+        (progn
+          (push jobindex *jenkins-breadcrumbs*)
+          (jenkins-job-view jobindex)))))
 
 (defun jenkins--parse-time-from (time-since timeitems)
   (let* ((timeitem (car timeitems))
@@ -280,7 +318,7 @@
     (if val (jenkins--time-since-to-text (/ val 1000)) "")))
 
 (defun jenkins-get-jobs-list ()
-  "Get list of jobs from jenkins server."
+  "Get list of jobs from jenkins server.  The info includes '_class' which helps differentiate type of the job."
   (setq
    *jenkins-jobs-list*
    (let* ((jobs-url (jenkins-jobs-view-url))
@@ -289,6 +327,7 @@
      (--map
       (apply 'list (cdr (assoc 'name it))
              (jenkins--make-job
+              (cdr (assoc '_class it))
               (cdr (assoc 'name it))
               (cdr (assoc 'result (assoc 'lastCompletedBuild it)))
               (cdr (assoc 'progress (assoc 'executor (assoc 'lastBuild it))))
@@ -296,6 +335,7 @@
               (jenkins--extract-time-of-build it 'lastFailedBuild)))
       jobs))))
 
+;; DEBUG: returns property list
 (defun jenkins-get-job-details (jobname)
   "Make to particular JOBNAME call."
   (cl-labels ((retrieve (attr item)
@@ -341,18 +381,21 @@
 (defun jenkins-visit-job (jobname)
   "Open job's webpage using JOBNAME."
   (interactive)
-  (browse-url (format "%s/job/%s/" (get-jenkins-url) jobname)))
+  (browse-url (format "%s/%s/" (get-jenkins-url)
+                      (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/")
+                      )))
 
 (defun jenkins-get-console-output (jobname build)
   "Show the console output for the current job"
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (console-buffer (get-buffer-create (format "*jenkins-console-%s-%s*" jobname build)))
-        (url (format "%sjob/%s/%s/consoleText" (get-jenkins-url) jobname build)))
+        (url (format "%s%s/%s/consoleText" (get-jenkins-url)
+                     (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/")
+                     build)))
     (with-current-buffer console-buffer
       (read-only-mode -1)    ; make sure buffer is writable
       (erase-buffer)
       (with-current-buffer (url-retrieve-synchronously url)
-
         (copy-to-buffer console-buffer (point-min) (point-max))))
     (pop-to-buffer console-buffer)
     (jenkins-console-output-mode)))
@@ -400,26 +443,39 @@
 (define-derived-mode jenkins-console-output-mode special-mode "jenkins-console-output"
   "Mode for viewing jenkins console output"
   ;; make buffer readonly
-  (read-only-mode))
+  (read-only-mode)
+  ;; remove ^M from the output
+  (setq buffer-display-table (make-display-table))
+  (aset buffer-display-table ?\^M []))
 
 (defun jenkins-job-render (jobname)
   "Render details buffer for JOBNAME."
   (setq buffer-read-only nil)
   (erase-buffer)
-  (let ((job (cdr (assoc jobname *jenkins-jobs-list*))))
-    (insert
-     (jenkins-job-details-screen jobname)
-     ))
+  (let* ((job (cdr (assoc jobname *jenkins-jobs-list*)))
+        (class (plist-get job :class)))
+      (insert
+       (jenkins-job-details-screen jobname))
+     )
   (setq buffer-read-only t))
 
 (defun jenkins-job-view (jobname)
   "Open JOBNAME details screen."
   (interactive)
   (setq jenkins-local-jobs-shown t)
-  (let ((details-buffer-name (format "*jenkins: %s details*" jobname)))
-    (switch-to-buffer details-buffer-name)
-    (jenkins-job-render jobname)
-    (jenkins-job-view-mode)))
+  (let* ((details-buffer-name (format "*jenkins: %s details*" jobname))
+        (job (cdr (assoc jobname *jenkins-jobs-list*)))
+        (class (plist-get job :class)))
+    (cond ((string-equal "jenkins.branch.OrganizationFolder" class)
+           (jenkins-mode))
+          ((string-equal "org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject" class)
+           (jenkins-mode))
+          ((string-equal "com.cloudbees.hudson.plugins.folder.Folder" class)
+           (jenkins-mode))
+        (t (progn
+             (switch-to-buffer details-buffer-name)
+             (jenkins-job-render jobname)
+             (jenkins-job-view-mode))))))
 
 (defun jenkins-job-details-toggle ()
   "Toggle builds list."
@@ -432,7 +488,8 @@
   "Call jenkins build JOBNAME function."
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (url-request-method "POST")
-        (build-url (format "%sjob/%s/build" (get-jenkins-url) jobname)))
+        (build-url (format "%s/%s/build" (get-jenkins-url)
+           (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/"))))
     (when (y-or-n-p (format "Ready to start %s?" jobname))
       (with-current-buffer (url-retrieve-synchronously build-url)
         (message (format "Building %s job started!" jobname))))))
@@ -441,7 +498,8 @@
   "Call jenkins build JOBNAME function."
   (let ((url-request-extra-headers (jenkins--get-auth-headers))
         (url-request-method "GET")
-        (build-url (format "%sjob/%s/lastCompletedBuild/rebuild/" (get-jenkins-url) jobname)))
+        (build-url (format "%s/%s/build" (get-jenkins-url)
+           (mapconcat (lambda (a) (concat "job/" a)) (reverse *jenkins-breadcrumbs*) "/"))))
     (when (y-or-n-p (format "Ready to rebuild %s?" jobname))
       (with-current-buffer (url-retrieve-synchronously build-url)
         (message (format "Building %s job started!" jobname))))))
@@ -528,6 +586,7 @@
   (let ((inhibit-read-only t))
     (erase-buffer))
   (setq buffer-read-only t)
+  (setq *jenkins-breadcrumbs* nil)
   (jenkins-mode))
 
 
