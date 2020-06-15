@@ -152,12 +152,15 @@
 (defun jenkins-pop-and-reload ()
   "Pop the breadcrumb and reload the jenkins window."
   (interactive)
-  (pop *jenkins-breadcrumbs*)
-  (pop-to-buffer jenkins-buffer-name)
-  (let ((inhibit-read-only t))
-    (erase-buffer))
-  (setq buffer-read-only t)
-  (jenkins-mode))
+  (if (= 0 (length *jenkins-breadcrumbs*))
+      (quit-window)
+    (progn
+      (pop *jenkins-breadcrumbs*)
+      (pop-to-buffer jenkins-buffer-name)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (setq buffer-read-only t)
+      (jenkins-mode))))
 
 (defun jenkins--render-name (item)
   "Render jobname for main jenkins job ITEM screen."
