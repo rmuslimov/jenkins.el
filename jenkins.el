@@ -396,7 +396,6 @@
       (read-only-mode -1)    ; make sure buffer is writable
       (erase-buffer)
       (with-current-buffer (url-retrieve-synchronously url)
-
         (copy-to-buffer console-buffer (point-min) (point-max))))
     (pop-to-buffer console-buffer)
     (jenkins-console-output-mode)))
@@ -444,7 +443,10 @@
 (define-derived-mode jenkins-console-output-mode special-mode "jenkins-console-output"
   "Mode for viewing jenkins console output"
   ;; make buffer readonly
-  (read-only-mode))
+  (read-only-mode)
+  ;; remove ^M from the output
+  (setq buffer-display-table (make-display-table))
+  (aset buffer-display-table ?\^M []))
 
 (defun jenkins-job-render (jobname)
   "Render details buffer for JOBNAME."
